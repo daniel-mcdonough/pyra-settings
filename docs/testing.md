@@ -9,6 +9,19 @@
   "SYSFS_ROOT", …)` and `CONFIG_PATH`, after loading `helper/pyra-settings-helper` with `SourceFileLoader` (no
   `.py` suffix).
 - The GUI runs on the PC at 1280x720 against the same fake tree.
+- `tests/test_packaging.py` checks the packaging files against each other: the policy's `exec.path`, the unit's
+  `ExecStart` and `debian/install` all name the same helper path.
+
+## Building and installing the .deb
+
+- `scripts/build-deb.sh` builds in a `debian:trixie` container (the PC isn't Debian), runs
+  `desktop-file-validate`, prints `dpkg -c` and lintian, and leaves the `.deb` in `dist/`. The local
+  `debian:trixie` docker image is `linux/arm/v7`, so it runs under qemu (slow, but it is the target's arch).
+- Install on the Pyra: copy the `.deb` over, `sudo apt-get install -y ./pyra-settings_<v>_all.deb`. Check with
+  `systemctl status pyra-settings-apply` (with no config: "start condition unmet") and
+  `pkaction --action-id org.pyra.settings.wake --verbose`.
+- A pkexec check that changes nothing: `pkexec /usr/libexec/pyra-settings/pyra-settings-helper set-wake power on`
+  in the desktop session prompts (mate-polkit), then is refused with exit 2.
 
 ### Fake sysfs: `O_TRUNC` differs
 

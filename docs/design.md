@@ -9,7 +9,7 @@ The UI layout is the owner's design, in `docs/ui.md`. This file says what the ap
 ## Status
 
 - Design agreed for v1 (2026-11-12). Helper, config file and boot apply written and tested on a fake sysfs
-  (NEXT 1.1); packaging and GUI not yet.
+  (NEXT 1.1). Packaged (NEXT 1.2), installed on the Pyra on a kernel without 0053. GUI is a stub until NEXT 1.3.
 - Kernel side done: 0053 is tested on `5.6.19-m4-kbdled-test`, not in `kernel-5.6.19-r2`. See
   `docs/kernel-interface.md`.
 
@@ -183,6 +183,25 @@ None agreed. Each needs its own yes before work starts.
    "apply", shared by the app and boot.
 6. **Packaging**: one `.deb` (GUI, helper, polkit policy, unit, `.desktop` file). The dragonbox-pyra image build
    installs it as a numbered fix.
+
+   As built (NEXT 1.2), package `pyra-settings`, `Architecture: all`, plain `dh` with `debian/install`:
+
+   | Source | Installed at |
+   |---|---|
+   | `helper/pyra-settings-helper` | `/usr/libexec/pyra-settings/` (0755, the git exec bit survives `dh_fixperms`) |
+   | `src/pyra-settings` (launcher) | `/usr/bin/`; puts `/usr/share/pyra-settings` on `sys.path` and calls `pyra_settings.__main__.main` |
+   | `src/pyra_settings/` | `/usr/share/pyra-settings/` (private module, no dh-python) |
+   | `data/org.pyra.settings.wake.policy` | `/usr/share/polkit-1/actions/`; `allow_any`/`allow_inactive` = `auth_admin` |
+   | `data/pyra-settings-apply.service` | `/usr/lib/systemd/system/`; `dh_installsystemd` finds it there and enables it (`WantedBy=multi-user.target`) |
+   | `data/pyra-settings.desktop` | `/usr/share/applications/`; `Categories=Settings;` until NEXT 2.4 |
+
+   - The unit has `ConditionPathExists=/etc/pyra-settings/pyra-settings.conf`: with no config it is skipped, not
+     run. Nothing is shipped in `/etc`; the helper creates the directory on the first `set-wake`, and
+     `debian/postrm` removes the config and directory on purge.
+   - `dh_installsystemd` also starts (install) or restarts (upgrade) the unit, which reapplies the config. Harmless,
+     and skipped in a chroot image build.
+   - Depends: `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, all on the image.
+   - Lintian: one warning, no manpage for `/usr/bin/pyra-settings`.
 
 Names: the brief in the private notes used `pyra-config`. They are `pyra-settings` here so the package, helper,
 config, unit and polkit action match the app's name.

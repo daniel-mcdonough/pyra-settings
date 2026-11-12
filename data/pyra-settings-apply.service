@@ -1,0 +1,11 @@
+[Unit]
+Description=Apply Pyra Settings wake configuration
+After=local-fs.target
+ConditionPathExists=/etc/pyra-settings/pyra-settings.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/pyra-settings/pyra-settings-helper apply
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+pyra-settings (0.1) trixie; urgency=medium
+
+  * Initial release: privileged helper, polkit policy, boot apply unit and
+    a stub GUI (NEXT 1.1, 1.2).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 12 Nov 2026 12:00:00 +0000

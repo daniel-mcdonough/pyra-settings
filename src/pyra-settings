@@ -1,0 +1,10 @@
+#!/usr/bin/python3
+"""Launcher for the Pyra Settings GUI. The package lives in /usr/share/pyra-settings, outside sys.path."""
+
+import sys
+
+sys.path.insert(0, "/usr/share/pyra-settings")
+
+from pyra_settings.__main__ import main  # noqa: E402
+
+sys.exit(main())

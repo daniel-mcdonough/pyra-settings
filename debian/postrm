@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+# The config is written by the helper, not shipped, so dpkg doesn't remove it on purge.
+if [ "$1" = "purge" ]; then
+	rm -f /etc/pyra-settings/pyra-settings.conf /etc/pyra-settings/pyra-settings.conf.new
+	rmdir --ignore-fail-on-non-empty /etc/pyra-settings 2>/dev/null || true
+fi
+
+#DEBHELPER#
