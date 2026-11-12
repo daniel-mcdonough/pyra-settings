@@ -8,7 +8,21 @@
   <dir> [--no-0053]` to make one for the GUI. Tests point the helper at it with `mock.patch.object(helper,
   "SYSFS_ROOT", …)` and `CONFIG_PATH`, after loading `helper/pyra-settings-helper` with `SourceFileLoader` (no
   `.py` suffix).
-- The GUI runs on the PC at 1280x720 against the same fake tree.
+- The GUI runs on the PC at 1280x720 against the same fake tree. The PC has no `org.mate.power-manager`
+  schema, and `pkexec` would hit the real helper path, so a run needs three stand-ins:
+
+      glib-compile-schemas <dir>     # after copying tests/schemas/*.xml into <dir>
+      python3 tests/fakesysfs.py <sys> [--no-0053]
+      cd src && GSETTINGS_SCHEMA_DIR=<dir> GSETTINGS_BACKEND=keyfile XDG_CONFIG_HOME=<cfg> \
+        PYRA_SETTINGS_SYSFS=<sys> PYRA_SETTINGS_HELPER="python3 ../tests/fakehelper.py <sys> <conf>" \
+        python3 -m pyra_settings
+
+  `tests/schemas/` is the five keys the app uses, trimmed from trixie's `mate-power-manager-common`, with the
+  image's defaults. The keyfile backend leaves the values in `<cfg>/glib-2.0/settings/keyfile`, which can be
+  edited before a run to set up "Custom" values. `tests/fakehelper.py` imports the real helper and points it at
+  `<sys>` and `<conf>`; `FAKEHELPER_EXIT=126` (or 127, 1, 2) makes it fail without changing anything.
+- Headless: `Xvfb :91 -screen 0 1280x720x24`, `DISPLAY=:91`, `xdotool key Home Down Left` for the controller
+  keys (A = Home, B = End, Y/X = Page_Up/Page_Down), `import -window root -resize 50%` for screenshots.
 - `tests/test_packaging.py` checks the packaging files against each other: the policy's `exec.path`, the unit's
   `ExecStart` and `debian/install` all name the same helper path.
 

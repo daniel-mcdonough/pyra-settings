@@ -1,3 +1,10 @@
+pyra-settings (0.2) trixie; urgency=medium
+
+  * GUI: the sleep and wake pages (Quick settings, Suspend & wake, Battery)
+    with controller navigation (NEXT 1.3).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 12 Nov 2026 18:00:00 +0000
+
 pyra-settings (0.1) trixie; urgency=medium
 
   * Initial release: privileged helper, polkit policy, boot apply unit and

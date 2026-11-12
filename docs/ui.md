@@ -167,6 +167,21 @@ PgUp and PgDn themselves.
 - Touch and mouse: tapping a sidebar row opens that page with the sidebar focused. Tapping a row focuses it and
   toggles or activates switches and buttons; tapping an option on a choice row selects it.
 
+## As built (NEXT 1.3): choices this file left open
+
+Made while writing the GUI, where the sections above say nothing. The owner hasn't reviewed them yet (NEXT 1.6).
+
+- Icons: Quick settings `preferences-system-symbolic`, Suspend & wake `weather-clear-night-symbolic`, Battery
+  `battery-good-symbolic`; lock `changes-prevent-symbolic`.
+- A choice row showing "Custom": A or Right picks the first option, Left the last.
+- Y / X with the focus in the page: the focus goes to the first row of the new page.
+- Status line: "Saved" 1.5 s, the helper's "Saved. Takes effect…" 4 s, errors 8 s.
+- `org.mate.power-manager` not installed: the lid, idle and battery rows are insensitive, subtitle "MATE power
+  settings not found". sysfs unreadable: a dimmed info row "Wake sources: Unreadable" with the error, in place
+  of the wake rows.
+- Hint glyphs are fixed dark badges (`#333`, white text), not theme colours, as the mockup's are.
+- The warning's focus ring is a 3 px frame around the `Gtk.InfoBar` (its children paint over a box-shadow).
+
 ## v2 sketches (not agreed)
 
 Kept so v2 work starts from the owner's layout. Each needs its own yes (`design.md`).

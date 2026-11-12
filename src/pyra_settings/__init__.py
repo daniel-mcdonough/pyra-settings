@@ -1,1 +1,1 @@
-"""Pyra Settings GUI. A stub until NEXT 1.3."""
+"""Pyra Settings GUI: the sleep and wake page (NEXT 1.3)."""

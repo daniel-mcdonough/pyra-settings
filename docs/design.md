@@ -9,7 +9,8 @@ The UI layout is the owner's design, in `docs/ui.md`. This file says what the ap
 ## Status
 
 - Design agreed for v1 (2026-11-12). Helper, config file and boot apply written and tested on a fake sysfs
-  (NEXT 1.1). Packaged (NEXT 1.2), installed on the Pyra on a kernel without 0053. GUI is a stub until NEXT 1.3.
+  (NEXT 1.1). Packaged (NEXT 1.2), installed on the Pyra on a kernel without 0053. GUI written and run on the PC
+  against fake trees (NEXT 1.3); not yet tried on the Pyra.
 - Kernel side done: 0053 is tested on `5.6.19-m4-kbdled-test`, not in `kernel-5.6.19-r2`. See
   `docs/kernel-interface.md`.
 
@@ -144,6 +145,30 @@ None agreed. Each needs its own yes before work starts.
 
 1. **GUI**, `pyra-settings`, Python + GTK 3, runs as the user. Reads sysfs directly (the files are world-readable)
    to show live state. Writes gsettings for the per-user settings. Never writes sysfs.
+
+   As written (NEXT 1.3):
+   - `src/pyra_settings/state.py` holds everything testable without GTK (sysfs reading, presets, groups, the
+     warning, "Custom", helper argv, exit-code messages; `tests/test_state.py`). `window.py` is the GTK side.
+   - Wake state read from sysfs: `wake` is `wakeup_keys` ∩ `keys` with `power/wakeup=enabled`, empty with it
+     `disabled` (it gates `wakeup_keys`); without 0053, all of `keys` or nothing. Lid wake is `power/wakeup`
+     enabled and, with 0053, `0` in `wakeup_switches`.
+   - The helper runs through `Gio.Subprocess` asynchronously, so the window keeps drawing while mate-polkit asks
+     for the password. The control shows the requested value meanwhile; when the helper exits, sysfs is read
+     again, so a cancel or error puts the control back by itself. Wake controls are insensitive while it runs.
+   - The status line text per exit code: 0 "Saved. Takes effect at the next suspend."; 126 "Password
+     cancelled. Nothing changed."; 127 "Not authorized. Nothing changed."; 2 "Refused: <helper's reason>";
+     1 "Couldn't save: <helper's last stderr line>". Anything else shows the code.
+   - Without 0053 the game-buttons switch sends every code in `keys` (on) or `none` (off); the helper turns that
+     into `power/wakeup`.
+   - The bag warning shows when either lid key (battery or AC) is `suspend`, not only when both are.
+   - gsettings `changed` rebuilds the pages, so a change made in MATE's panel shows at once.
+   - Button names from the device tree are not read: `ui.md` has no per-button row to show them in (groups have
+     fixed names). The rule above stays for when per-button rows exist.
+   - `PYRA_SETTINGS_HELPER` replaces `pkexec <helper>` with another command, for running the GUI on the PC
+     (`tests/fakehelper.py`, `docs/testing.md`). It is read by the GUI only, which runs as the user, so it grants
+     nothing; the helper still never reads an env var.
+   - `gi.require_version` pins Gdk as well as Gtk to 3.0: on a machine with GTK 4, importing Gdk first loads
+     Gdk 4 and Gtk 3 then fails.
 2. **Helper**, `/usr/libexec/pyra-settings/pyra-settings-helper`, run through `pkexec`. Commands:
    `set-wake game-buttons <codes>`, `set-wake lid on|off`, `apply`. It:
    - accepts only known device names, mapped to hard-coded sysfs paths, never a path from the caller;
