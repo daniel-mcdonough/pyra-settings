@@ -1,0 +1,287 @@
+#!/usr/bin/python3 -I
+"""pyra-settings-helper: the root half of Pyra Settings (NEXT 1.1).
+
+Run through pkexec (polkit action org.pyra.settings.wake) by the GUI, and as root by
+pyra-settings-apply.service at boot. Commands:
+
+    set-wake game-buttons <codes>|none   codes: a kernel bitmap list, e.g. 102-109,272-273
+    set-wake lid on|off
+    apply                                reapply the config file to sysfs
+
+set-wake writes sysfs first and the config file only if every sysfs write succeeded, so a write the kernel
+refuses changes nothing. apply never writes the config.
+
+Exit codes: 0 done, 1 a write or read failed, 2 the request was refused (bad arguments, unknown device, a code
+the device doesn't have, the power button). 126 and 127 stay free for pkexec's own "dismissed" and "not
+authorized".
+
+The sysfs and config locations are the module constants below. Nothing from the caller (argument, environment)
+can change them; only the test suite overrides them, by importing this file.
+"""
+
+import configparser
+import os
+import re
+import sys
+
+SYSFS_ROOT = "/sys/devices/platform"
+CONFIG_PATH = "/etc/pyra-settings/pyra-settings.conf"
+
+# Device names the caller may use, mapped to their sysfs directory under SYSFS_ROOT.
+GAME_BUTTONS = "game-buttons"
+LID = "lid"
+DEVICES = {
+    GAME_BUTTONS: "pyra-game-buttons",
+    LID: "pyra-lid-wakeup",
+}
+# Names that mean the power button. Its wake is never changed (docs/design.md, "Not exposed").
+POWER_BUTTON_NAMES = {"power", "power-button", "power_button", "palmas_power_button"}
+KEY_POWER = 116
+SW_LID = 0
+KEY_MAX = 0x2FF
+
+CONFIG_SECTION = "wake"
+
+EXIT_OK = 0
+EXIT_FAILED = 1
+EXIT_REFUSED = 2
+
+_LIST_RE = re.compile(r"^[0-9]{1,4}(-[0-9]{1,4})?(,[0-9]{1,4}(-[0-9]{1,4})?)*$")
+
+
+class Refused(Exception):
+    """The request is not allowed. Nothing was written."""
+
+
+class Failed(Exception):
+    """A read or write failed."""
+
+
+def log(msg):
+    print("pyra-settings-helper: " + msg, file=sys.stderr)
+
+
+def parse_list(text):
+    """Parse a kernel bitmap list ("54,97,102-109", "" for none) into a set of ints. Raises ValueError."""
+    text = text.strip()
+    if not text:
+        return set()
+    if not _LIST_RE.match(text):
+        raise ValueError("not a code list: %r" % text)
+    codes = set()
+    for part in text.split(","):
+        lo, _, hi = part.partition("-")
+        lo = int(lo)
+        hi = int(hi) if hi else lo
+        if lo > hi or hi > KEY_MAX:
+            raise ValueError("bad range: %r" % part)
+        codes.update(range(lo, hi + 1))
+    return codes
+
+
+def format_list(codes):
+    """A sorted comma list without ranges: the simplest form the kernel takes."""
+    return ",".join(str(c) for c in sorted(codes))
+
+
+def device_dir(name):
+    if name in POWER_BUTTON_NAMES:
+        raise Refused("the power button's wake is never changed")
+    if name not in DEVICES:
+        raise Refused("unknown device: %r" % name)
+    return os.path.join(SYSFS_ROOT, DEVICES[name])
+
+
+def read_attr(path):
+    try:
+        with open(path) as f:
+            return f.read()
+    except OSError as e:
+        raise Failed("cannot read %s: %s" % (path, e.strerror))
+
+
+def write_attr(path, value):
+    """One write() of value plus a newline, as `echo value > path` does."""
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_TRUNC)
+        try:
+            os.write(fd, (value + "\n").encode())
+        finally:
+            os.close(fd)
+    except OSError as e:
+        raise Failed("kernel refused %r for %s: %s" % (value, path, e.strerror))
+
+
+def has_0053(dev):
+    """Patch 0053 adds wakeup_keys and wakeup_switches. Detected by the file, never by kernel version."""
+    return os.path.exists(os.path.join(dev, "wakeup_keys"))
+
+
+def check_game_codes(dev, codes):
+    if KEY_POWER in codes:
+        raise Refused("code %d is the power key; its wake is never changed" % KEY_POWER)
+    try:
+        known = parse_list(read_attr(os.path.join(dev, "keys")))
+    except ValueError as e:
+        raise Failed("cannot parse %s/keys: %s" % (dev, e))
+    unknown = codes - known
+    if unknown:
+        raise Refused("not a key on %s: %s" % (os.path.basename(dev), format_list(unknown)))
+
+
+def apply_game_buttons(codes):
+    """Make exactly `codes` wake the Pyra. Validates first, then writes sysfs."""
+    dev = device_dir(GAME_BUTTONS)
+    check_game_codes(dev, codes)
+    wakeup = os.path.join(dev, "power", "wakeup")
+    if not codes:
+        # "None" goes through power/wakeup until an empty wakeup_keys write is tested (NEXT 2.2).
+        write_attr(wakeup, "disabled")
+    elif has_0053(dev):
+        write_attr(os.path.join(dev, "wakeup_keys"), format_list(codes))
+        # A previous "none" left the whole device disabled; power/wakeup still gates wakeup_keys.
+        write_attr(wakeup, "enabled")
+    else:
+        log("no wakeup_keys (kernel without patch 0053): all game buttons wake, through power/wakeup")
+        write_attr(wakeup, "enabled")
+
+
+def apply_lid(on):
+    dev = device_dir(LID)
+    wakeup = os.path.join(dev, "power", "wakeup")
+    if not on:
+        # The lid device has one registered input, the lid switch, so power/wakeup covers it, and an empty
+        # wakeup_switches write is as untested as an empty wakeup_keys one (NEXT 2.2).
+        write_attr(wakeup, "disabled")
+        return
+    switches = os.path.join(dev, "wakeup_switches")
+    if os.path.exists(switches):
+        try:
+            known = parse_list(read_attr(os.path.join(dev, "switches")))
+        except ValueError as e:
+            raise Failed("cannot parse %s/switches: %s" % (dev, e))
+        if SW_LID not in known:
+            raise Failed("%s has no lid switch" % os.path.basename(dev))
+        write_attr(switches, str(SW_LID))
+    write_attr(wakeup, "enabled")
+
+
+def parse_game_value(text):
+    """Config or argument value for game-buttons: "none", or a code list."""
+    if text.strip() == "none":
+        return set()
+    codes = parse_list(text)
+    if not codes:
+        raise ValueError("empty code list (use \"none\")")
+    return codes
+
+
+def parse_lid_value(text):
+    text = text.strip()
+    if text not in ("on", "off"):
+        raise ValueError("lid must be on or off, not %r" % text)
+    return text == "on"
+
+
+def read_config():
+    """The config as a ConfigParser. A missing file is an empty config."""
+    cp = configparser.ConfigParser(interpolation=None)
+    try:
+        with open(CONFIG_PATH) as f:
+            cp.read_file(f)
+    except FileNotFoundError:
+        pass
+    except (OSError, configparser.Error) as e:
+        raise Failed("cannot read %s: %s" % (CONFIG_PATH, e))
+    return cp
+
+
+def save_config_value(key, value):
+    """Set [wake] key = value, keeping every other setting, and replace the file atomically."""
+    cp = read_config()
+    if not cp.has_section(CONFIG_SECTION):
+        cp.add_section(CONFIG_SECTION)
+    cp.set(CONFIG_SECTION, key, value)
+    directory = os.path.dirname(CONFIG_PATH)
+    tmp = CONFIG_PATH + ".new"
+    try:
+        os.makedirs(directory, mode=0o755, exist_ok=True)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        with os.fdopen(fd, "w") as f:
+            os.fchmod(f.fileno(), 0o644)
+            cp.write(f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, CONFIG_PATH)
+    except OSError as e:
+        raise Failed("cannot write %s: %s" % (CONFIG_PATH, e.strerror))
+
+
+def cmd_set_wake(args):
+    if len(args) != 2:
+        raise Refused("usage: set-wake game-buttons <codes>|none, or set-wake lid on|off")
+    name, value = args
+    device_dir(name)  # refuses the power button and unknown names before the value is looked at
+    if name == GAME_BUTTONS:
+        try:
+            codes = parse_game_value(value)
+        except ValueError as e:
+            raise Refused(str(e))
+        apply_game_buttons(codes)
+        save_config_value(GAME_BUTTONS, format_list(codes) if codes else "none")
+    else:
+        try:
+            on = parse_lid_value(value)
+        except ValueError as e:
+            raise Refused(str(e))
+        apply_lid(on)
+        save_config_value(LID, "on" if on else "off")
+
+
+def cmd_apply(args):
+    """Apply every setting in the config. A missing key leaves the kernel default; one bad setting doesn't stop
+    the others."""
+    if args:
+        raise Refused("usage: apply")
+    cp = read_config()
+    if not cp.has_section(CONFIG_SECTION):
+        return EXIT_OK
+    status = EXIT_OK
+    section = cp[CONFIG_SECTION]
+    for key in section:
+        value = section[key]
+        try:
+            if key == GAME_BUTTONS:
+                apply_game_buttons(parse_game_value(value))
+            elif key == LID:
+                apply_lid(parse_lid_value(value))
+            else:
+                log("ignoring unknown setting [%s] %s" % (CONFIG_SECTION, key))
+        except (ValueError, Refused, Failed) as e:
+            log("[%s] %s: %s" % (CONFIG_SECTION, key, e))
+            status = EXIT_FAILED
+    return status
+
+
+COMMANDS = {
+    "set-wake": cmd_set_wake,
+    "apply": cmd_apply,
+}
+
+
+def main(argv):
+    if not argv or argv[0] not in COMMANDS:
+        log("refused: usage: pyra-settings-helper set-wake <device> <value> | apply")
+        return EXIT_REFUSED
+    try:
+        return COMMANDS[argv[0]](argv[1:]) or EXIT_OK
+    except Refused as e:
+        log("refused: %s" % e)
+        return EXIT_REFUSED
+    except Failed as e:
+        log(str(e))
+        return EXIT_FAILED
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

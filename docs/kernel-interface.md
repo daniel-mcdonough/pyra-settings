@@ -69,8 +69,9 @@ unknown; see NEXT.
 
 `switches` = `0` (`SW_LID`), `wakeup_switches` = `0`, `power/wakeup` = `enabled`. The DT node also has a
 `wwan_wakeup` key (code 240), but it isn't registered: `keys` is empty. The lid is controlled by
-`wakeup_switches` (`0` on, empty off) or, without 0053, `power/wakeup`. **Not tested** by closing and opening the
-lid.
+`wakeup_switches` (`0` on, empty off) or, without 0053, `power/wakeup`. The helper turns it off with
+`power/wakeup=disabled`, never an empty `wakeup_switches` (untested, like the empty `wakeup_keys` write). **Not
+tested** by closing and opening the lid.
 
 ## Other wake sources (not gpio-keys)
 

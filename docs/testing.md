@@ -4,7 +4,18 @@
 
 - The helper runs against a fake sysfs tree (a temp directory with `keys`, `wakeup_keys`, `power/wakeup`), with
   the sysfs and config roots overridable only from the test harness, never from the command line `pkexec` runs.
+- The fake tree is `tests/fakesysfs.py`: `build(root, with_0053=True)` in tests, or `python3 tests/fakesysfs.py
+  <dir> [--no-0053]` to make one for the GUI. Tests point the helper at it with `mock.patch.object(helper,
+  "SYSFS_ROOT", …)` and `CONFIG_PATH`, after loading `helper/pyra-settings-helper` with `SourceFileLoader` (no
+  `.py` suffix).
 - The GUI runs on the PC at 1280x720 against the same fake tree.
+
+### Fake sysfs: `O_TRUNC` differs
+
+The helper opens attributes with `O_WRONLY | O_TRUNC`, as shell `>` does. On sysfs the truncate is a no-op; on
+the fake tree's regular files it empties the file before the write. A test that simulates a kernel `EINVAL` on
+`os.write` must also strip `O_TRUNC` from `os.open`, or the fake file loses its old value and "nothing changed"
+can't be checked (`test_kernel_einval_leaves_config`).
 
 ## On the Pyra: does a button wake it?
 

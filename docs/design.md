@@ -8,7 +8,8 @@ The UI layout is the owner's design, in `docs/ui.md`. This file says what the ap
 
 ## Status
 
-- Design agreed for v1 (2026-11-12). No code yet.
+- Design agreed for v1 (2026-11-12). Helper, config file and boot apply written and tested on a fake sysfs
+  (NEXT 1.1); packaging and GUI not yet.
 - Kernel side done: 0053 is tested on `5.6.19-m4-kbdled-test`, not in `kernel-5.6.19-r2`. See
   `docs/kernel-interface.md`.
 
@@ -72,7 +73,7 @@ duplicating panels that already work.
 |---|---|---|---|
 | Game buttons that wake the Pyra | `pyra-game-buttons/wakeup_keys` (0053) | Helper, as root | All 14 (device tree) |
 | Fallback without 0053 | `pyra-game-buttons/power/wakeup` | Helper, as root | `enabled` |
-| Lid wakes the Pyra | `pyra-lid-wakeup/wakeup_switches` (`0` on, empty off), or `power/wakeup` | Helper, as root | On |
+| Lid wakes the Pyra | On: `pyra-lid-wakeup/wakeup_switches` = `0` (0053) and `power/wakeup` = `enabled`. Off: `power/wakeup` = `disabled` | Helper, as root | On |
 | Lid action, battery and AC | gsettings `org.mate.power-manager button-lid-battery`, `button-lid-ac` | GUI, as the user | `blank` |
 | Idle sleep, battery and AC | gsettings `org.mate.power-manager sleep-computer-battery`, `sleep-computer-ac` | GUI, as the user | 0 (off) |
 | Critical battery action | gsettings `org.mate.power-manager action-critical-battery` | GUI, as the user | `shutdown` (image fix 24) |
@@ -150,6 +151,22 @@ None agreed. Each needs its own yes before work starts.
    - writes the config file and sysfs, so a change is live and persistent;
    - refuses the power button;
    - falls back to `power/wakeup` without 0053 (on if any game button is chosen, off if none), and logs one line.
+
+   As written (NEXT 1.1):
+   - `set-wake game-buttons <codes>|none` takes a kernel bitmap list (`102-109,272-273`), writes `wakeup_keys` as
+     a sorted comma list, then `power/wakeup=enabled` (a previous "none" left it disabled). `none` writes
+     `power/wakeup=disabled` only, until NEXT 2.2. Code 116 (`KEY_POWER`) is refused even if `keys` lists it.
+   - `set-wake lid off` writes `power/wakeup=disabled`, not an empty `wakeup_switches`: the lid device has one
+     registered input, so it is equivalent, and the empty write is untested (NEXT 2.2).
+   - Order: validate everything, write sysfs, then replace the config atomically (`.new` + rename, mode 0644). A
+     refused or failed sysfs write leaves the config untouched.
+   - `apply` applies each `[wake]` key independently, logs and skips a bad one, ignores unknown keys, never writes
+     the config.
+   - Exit codes: 0 done; 1 a read or write failed; 2 refused (usage, unknown device, unknown code, power button).
+     126 and 127 are pkexec's (dismissed, not authorized). Messages go to stderr, prefixed
+     `pyra-settings-helper:`; refusals contain `refused:`.
+   - Shebang `#!/usr/bin/python3 -I`: isolated mode, no `PYTHON*` env or user site, on top of pkexec's own env
+     scrub.
 3. **polkit action**, `org.pyra.settings.wake`, in `/usr/share/polkit-1/actions/`, with
    `org.freedesktop.policykit.exec.path` set to the helper and `allow_active` = `auth_admin_keep`.
 4. **Config file**, `/etc/pyra-settings/pyra-settings.conf`, INI, one file for every later setting too:
@@ -158,7 +175,9 @@ None agreed. Each needs its own yes before work starts.
        game-buttons = 102,103,104,105,106,107,108,109,272,273
        lid = on
 
-   A missing key leaves the kernel default alone, so an empty file is a no-op.
+   A missing key leaves the kernel default alone, so an empty file is a no-op. "No game buttons" is stored as
+   `game-buttons = none`; an empty value is refused. Other sections and keys survive a `set-wake` (comments
+   don't: `configparser` drops them).
 5. **Boot apply**, `pyra-settings-apply.service`, oneshot, `ExecStart=… helper apply`, after `local-fs.target`.
    gpio-keys is built in (`CONFIG_KEYBOARD_GPIO=y`), so the devices exist before userspace. One implementation of
    "apply", shared by the app and boot.
