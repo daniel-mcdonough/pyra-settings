@@ -77,6 +77,7 @@ duplicating panels that already work.
 | Lid wakes the Pyra | On: `pyra-lid-wakeup/wakeup_switches` = `0` (0053) and `power/wakeup` = `enabled`. Off: `power/wakeup` = `disabled` | Helper, as root | On |
 | Lid action, battery and AC | gsettings `org.mate.power-manager button-lid-battery`, `button-lid-ac` | GUI, as the user | `blank` |
 | Idle sleep, battery and AC | gsettings `org.mate.power-manager sleep-computer-battery`, `sleep-computer-ac` | GUI, as the user | 0 (off) |
+| What idle sleep does | gsettings `org.mate.power-manager action-sleep-type-battery`, `-ac` | GUI, as the user, with an idle time | Upstream `hibernate` / `suspend`; image value unrecorded (NEXT 2.7) |
 | Critical battery action | gsettings `org.mate.power-manager action-critical-battery` | GUI, as the user | `shutdown` (image fix 24) |
 
 The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kernel's rules are in
@@ -94,6 +95,9 @@ The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kerne
   2026-11-12).
 - Say that a change takes effect at the next suspend.
 - Critical battery: offer `shutdown` only (owner, 2026-11-12). Never `hibernate`, `suspend` or `nothing`.
+- Idle sleep suspends, never hibernates (owner, 2026-11-12): picking an idle time other than Never also writes
+  `suspend` to each `action-sleep-type-*` key that holds anything else. Never leaves them alone. The image should
+  default them to `suspend` too (NEXT 2.7), for idle sleep set from MATE's own panel.
 - Lid action and idle sleep: one control each, writing both the `-battery` and `-ac` key. A value the app doesn't
   offer, or differing battery and AC values, shows as "Custom" and is never rewritten unless the user picks one.
 
@@ -162,6 +166,8 @@ None agreed. Each needs its own yes before work starts.
      into `power/wakeup`.
    - The bag warning shows when either lid key (battery or AC) is `suspend`, not only when both are.
    - gsettings `changed` rebuilds the pages, so a change made in MATE's panel shows at once.
+   - Unreadable sysfs (`OSError`, `ValueError` from `read_wake_state`): `wake` is `None`, the wake rows are built
+     insensitive, and `state.wake_error_text` gives the status line's idle text (`ui.md`).
    - Button names from the device tree are not read: `ui.md` has no per-button row to show them in (groups have
      fixed names). The rule above stays for when per-button rows exist.
    - `PYRA_SETTINGS_HELPER` replaces `pkexec <helper>` with another command, for running the GUI on the PC

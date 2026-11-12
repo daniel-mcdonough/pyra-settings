@@ -59,6 +59,12 @@ onto them for pyrainput. Don't treat this table as the source of truth: read `ke
 from `/sys/devices/platform/pyra-game-buttons/of_node/<node>/label` (codes in `linux,code`, a 4-byte big-endian
 u32).
 
+The shoulder buttons' labels are `Left-Shoulder-Top`, `Left-Shoulder-Bottom`, `Right-Shoulder-Top` and
+`Right-Shoulder-Bottom`: the names on their `/proc/interrupts` lines, where each press raised only its own count
+(dragonbox-pyra `docs/troubleshooting.md`, 2026-11-12). The other ten labels aren't recorded. The code table's
+shoulder rows come from the same tests and from the 0053 wake test (left shoulder top, 126, left out of the set,
+slept through; A, 102, woke). v1 shows no per-button names (`design.md`), so nothing waits on the rest.
+
 ## `user-buttons`: BTN1
 
 One key, `BTN1`, code 169: the Letux Cortex 15 CPU board's "User Button" on `gpio3_83`, wake on by device tree

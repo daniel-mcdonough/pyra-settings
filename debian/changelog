@@ -1,3 +1,13 @@
+pyra-settings (0.3) trixie; urgency=medium
+
+  * Idle sleep suspends: picking an idle time also sets MATE's idle sleep
+    type to suspend where it was hibernate (NEXT 1.6, 2.7).
+  * Wake settings that can't be read grey out their rows, and the reason
+    stays in the status line (NEXT 1.6).
+  * "Saved" stays in the status line for 3 s.
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 12 Nov 2026 20:00:00 +0000
+
 pyra-settings (0.2) trixie; urgency=medium
 
   * GUI: the sleep and wake pages (Quick settings, Suspend & wake, Battery)

@@ -8,7 +8,8 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+gi.require_version("Pango", "1.0")
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import state as st  # noqa: E402
 
@@ -52,7 +53,7 @@ PAGES = (
 )
 LOCK_ICON = "changes-prevent-symbolic"
 SCROLL_MARGIN = 60
-SAVED_MS = 1500
+SAVED_MS = 3000
 SAVED_WAKE_MS = 4000
 ERROR_MS = 8000
 
@@ -337,6 +338,7 @@ class PyraSettingsWindow(Gtk.Window):
             self.settings.connect("changed", lambda *_: self.rebuild())
         self.read_wake()
         self.rebuild()
+        self._clear_status()
         self.maximize()
 
     # State
@@ -354,7 +356,7 @@ class PyraSettingsWindow(Gtk.Window):
             self.wake = st.read_wake_state()
             self.wake_error = None
         except (OSError, ValueError) as e:
-            self.wake, self.wake_error = None, str(e)
+            self.wake, self.wake_error = None, st.wake_error_text(e)
 
     def _get(self, key):
         value = self.settings.get_value(key)
@@ -364,7 +366,15 @@ class PyraSettingsWindow(Gtk.Window):
         return [self._get(k) for k in keys] if self.settings else [None] * len(keys)
 
     def set_gsettings(self, keys, value):
-        for key in keys:
+        self._write_gsettings([(key, value) for key in keys])
+
+    def set_idle(self, seconds):
+        schema = self.settings.props.settings_schema
+        types = {k: self._get(k) for k in st.SLEEP_TYPE_KEYS if schema.has_key(k)}
+        self._write_gsettings(st.idle_writes(seconds, types))
+
+    def _write_gsettings(self, writes):
+        for key, value in writes:
             if isinstance(value, int):
                 self.settings.set_int(key, value)
             else:
@@ -463,7 +473,7 @@ class PyraSettingsWindow(Gtk.Window):
         values = self._values(st.IDLE_KEYS)
         current = st.choice_value(values, st.IDLE_OPTIONS) if self.settings else None
         return ChoiceRow("idle", "Sleep when idle for", self._custom_sub(current), st.IDLE_OPTIONS, current,
-                         lambda v: self.set_gsettings(st.IDLE_KEYS, v), self._focus_row,
+                         self.set_idle, self._focus_row,
                          sensitive=bool(self.settings))
 
     def _custom_sub(self, current):
@@ -474,7 +484,9 @@ class PyraSettingsWindow(Gtk.Window):
     def _game_rows(self, with_groups):
         """The preset (and on Suspend & wake the groups) with 0053, else the one fallback switch."""
         if self.wake is None:
-            return [InfoRow("wake-error", "Wake sources", "Unreadable", self.wake_error or "", dimmed=True)]
+            # sysfs unreadable: the fallback switch, greyed out; the status line says why (owner, NEXT 1.6).
+            return [SwitchRow("game", "Game buttons wake the Pyra", "", False, None, locked=True,
+                              sensitive=False)]
         w = self.wake
         sensitive = not self.busy
         if not w.has_0053:
@@ -495,7 +507,7 @@ class PyraSettingsWindow(Gtk.Window):
         return rows
 
     def _quick_rows(self):
-        has_0053 = self.wake.has_0053 if self.wake else True
+        has_0053 = self.wake.has_0053 if self.wake else False
         return (self._warning_rows("quick-warning") + [self._lid_row()] + self._game_rows(False)
                 + [self._idle_row(),
                    ButtonRow("more", "More wake options",
@@ -507,9 +519,9 @@ class PyraSettingsWindow(Gtk.Window):
                 HeaderRow("h-wake", "Wake sources")]
         rows += self._warning_rows("wake-warning") + self._game_rows(True)
         rows.append(LockedRow("power", "Power button", "Can't be turned off, so the Pyra can always be woken."))
-        if self.wake:
-            rows.append(SwitchRow("lid-wake", "Opening the lid wakes the Pyra", "", self.wake.lid_wake,
-                                  self.set_lid_wake, locked=True, sensitive=not self.busy))
+        rows.append(SwitchRow("lid-wake", "Opening the lid wakes the Pyra", "",
+                              bool(self.wake and self.wake.lid_wake), self.set_lid_wake, locked=True,
+                              sensitive=bool(self.wake) and not self.busy))
         return rows
 
     def _battery_rows(self):
@@ -636,12 +648,12 @@ class PyraSettingsWindow(Gtk.Window):
         bar.get_style_context().add_class("pyra-hintbar")
         self.hints = Gtk.Box(spacing=24)
         bar.pack_start(self.hints, False, False, 0)
-        self.status_box = Gtk.Box(spacing=8)
+        self.status_box = Gtk.Box(spacing=8, halign=Gtk.Align.END)
         self.status_icon = Gtk.Image()
-        self.status_label = Gtk.Label()
+        self.status_label = Gtk.Label(xalign=1.0, ellipsize=Pango.EllipsizeMode.END)
         self.status_box.pack_start(self.status_icon, False, False, 0)
         self.status_box.pack_start(self.status_label, False, False, 0)
-        bar.pack_end(self.status_box, False, False, 0)
+        bar.pack_end(self.status_box, True, True, 0)
         return bar
 
     def _update_hints(self):
@@ -671,13 +683,20 @@ class PyraSettingsWindow(Gtk.Window):
         if self.status_timer:
             GLib.source_remove(self.status_timer)
         self.status_label.set_text(text)
+        self.status_label.set_tooltip_text(text)
         self.status_icon.set_from_icon_name("dialog-warning-symbolic" if error else "emblem-ok-symbolic",
                                             Gtk.IconSize.MENU)
         self.status_box.show_all()
         self.status_timer = GLib.timeout_add(ms, self._clear_status)
 
     def _clear_status(self):
+        """Back to the idle line: empty, or the sysfs error, which stays while it lasts."""
         self.status_timer = None
-        self.status_label.set_text("")
-        self.status_icon.clear()
+        if self.wake_error:
+            self.status_label.set_text(self.wake_error)
+            self.status_icon.set_from_icon_name("dialog-warning-symbolic", Gtk.IconSize.MENU)
+        else:
+            self.status_label.set_text("")
+            self.status_icon.clear()
+        self.status_label.set_tooltip_text(self.status_label.get_text() or None)
         return False

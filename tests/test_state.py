@@ -72,6 +72,15 @@ class ReadWakeStateTest(unittest.TestCase):
         with self.assertRaises(OSError):
             st.read_wake_state(os.path.join(self.tmp, "nothing"))
 
+    def test_error_text_is_short(self):
+        root = os.path.join(self.tmp, "nothing")
+        with self.assertRaises(OSError) as cm:
+            st.read_wake_state(root)
+        self.assertEqual(st.wake_error_text(cm.exception, root),
+                         "Can't read the wake settings: No such file or directory (pyra-game-buttons/keys)")
+        self.assertEqual(st.wake_error_text(ValueError("not a code list: 'x'"), root),
+                         "Can't read the wake settings: not a code list: 'x'")
+
     def test_env_sets_root(self):
         root = self.tree(with_0053=False)
         with mock.patch.object(st, "SYSFS_ROOT", root):
@@ -143,6 +152,19 @@ class ChoiceValueTest(unittest.TestCase):
 
     def test_critical_offers_shutdown_only(self):
         self.assertEqual([v for v, _ in st.CRITICAL_OPTIONS], ["shutdown"])
+
+    def test_idle_time_sets_suspend(self):
+        types = {"action-sleep-type-battery": "hibernate", "action-sleep-type-ac": "suspend"}
+        self.assertEqual(st.idle_writes(300, types),
+                         [("sleep-computer-battery", 300), ("sleep-computer-ac", 300),
+                          ("action-sleep-type-battery", "suspend")])
+
+    def test_idle_never_leaves_sleep_type(self):
+        types = {"action-sleep-type-battery": "hibernate", "action-sleep-type-ac": "hibernate"}
+        self.assertEqual(st.idle_writes(0, types), [("sleep-computer-battery", 0), ("sleep-computer-ac", 0)])
+
+    def test_idle_without_sleep_type_keys(self):
+        self.assertEqual(st.idle_writes(600, {}), [("sleep-computer-battery", 600), ("sleep-computer-ac", 600)])
 
 
 class HelperTest(unittest.TestCase):

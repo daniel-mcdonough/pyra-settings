@@ -143,10 +143,19 @@ No warning when only the power button can wake the Pyra: the locked Power button
 
 Every change is written at once, so there is never an unsaved state to show.
 
-- No recent change: no text.
-- After a gsettings write: "Saved" for about 1.5 s, then no text again.
-- After a helper write: "Saved. Takes effect at the next suspend." for a few seconds.
-- Cancelled password or a helper error: the control goes back to its old value and the line says why.
+- No recent change: no text, unless the wake settings can't be read (below).
+- After a gsettings write: "Saved" for 3 s, then the idle line again.
+- After a helper write: "Saved. Takes effect at the next suspend." for 4 s.
+- Cancelled password or a helper error: the control goes back to its old value and the line says why, for 8 s.
+- Messages stay a few seconds (owner, 2026-11-12).
+
+### Wake settings that can't be read
+
+When sysfs can't be read (a device or file missing, a value that doesn't parse), the rows that need it stay in
+place, greyed out and off: on Quick settings the game-buttons switch (the without-0053 one, since 0053 can't be
+told), on Suspend & wake that switch and **Opening the lid wakes the Pyra**. The Power button row stays. The
+reason, "Can't read the wake settings: <error> (<file>)", is the status line's idle text with a warning icon:
+it stays, and comes back after each timed message (owner, 2026-11-12).
 
 ## Controller and keyboard
 
@@ -169,16 +178,17 @@ PgUp and PgDn themselves.
 
 ## As built (NEXT 1.3): choices this file left open
 
-Made while writing the GUI, where the sections above say nothing. The owner hasn't reviewed them yet (NEXT 1.6).
+Made while writing the GUI, where the sections above say nothing. The status timings and the unreadable-sysfs
+case were reviewed by the owner (2026-11-12) and moved into "Status line" above; the rest are not reviewed yet
+(NEXT 1.6).
 
 - Icons: Quick settings `preferences-system-symbolic`, Suspend & wake `weather-clear-night-symbolic`, Battery
   `battery-good-symbolic`; lock `changes-prevent-symbolic`.
 - A choice row showing "Custom": A or Right picks the first option, Left the last.
 - Y / X with the focus in the page: the focus goes to the first row of the new page.
-- Status line: "Saved" 1.5 s, the helper's "Saved. Takes effect…" 4 s, errors 8 s.
 - `org.mate.power-manager` not installed: the lid, idle and battery rows are insensitive, subtitle "MATE power
-  settings not found". sysfs unreadable: a dimmed info row "Wake sources: Unreadable" with the error, in place
-  of the wake rows.
+  settings not found".
+- Greyed-out rows still take the focus; A and ◀▶ do nothing on them.
 - Hint glyphs are fixed dark badges (`#333`, white text), not theme colours, as the mockup's are.
 - The warning's focus ring is a 3 px frame around the `Gtk.InfoBar` (its children paint over a box-shadow).
 
