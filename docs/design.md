@@ -4,8 +4,7 @@ Pyra Settings is a small GTK 3 app for the settings only the Pyra has. Version 1
 buttons wake the machine, whether the lid wakes it, what the lid does, idle sleep and the critical-battery action.
 It ships after the next Pyra image, whose kernel carries dragonbox-pyra `patches/0053` (per-button wake control).
 
-The UI layout is the owner's design and gets its own doc (`docs/ui.md`) when it exists. This file says what the
-app does and why, not how it looks.
+The UI layout is the owner's design, in `docs/ui.md`. This file says what the app does and why, not how it looks.
 
 ## Status
 
@@ -40,7 +39,7 @@ app does and why, not how it looks.
 | Power button wake | Never exposed; the helper refuses it | With it and the game buttons off, only the RTC can wake the machine |
 | Where MATE settings live | Custom app, listed in MATE Control Center; pulls in only the MATE settings that interact with wake | See "MATE or a custom app" |
 | Repo | Own repo, packaged as a `.deb`, installed by a numbered fix in the dragonbox-pyra image build | Own version and release cycle, like pyra-backlight |
-| UI layout | The owner's design | |
+| UI layout | The owner's design, `docs/ui.md` | Follows the GTK theme; no app-specific themes |
 
 ## MATE or a custom app
 
@@ -91,8 +90,9 @@ The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kerne
 - Warn when the lid action is `suspend` and a shoulder button still wakes the machine.
 - Warn when neither a game button nor the lid wakes it (only the power button is left). Allowed, but said plainly.
 - Say that a change takes effect at the next suspend.
-- Critical battery: offer `shutdown`, and possibly `nothing` (UPower then powers off by itself at 2 %). Never
-  `hibernate` or `suspend`. Check MATE's allowed values on the image first.
+- Critical battery: offer `shutdown` only (owner, 2026-11-12). Never `hibernate`, `suspend` or `nothing`.
+- Lid action and idle sleep: one control each, writing both the `-battery` and `-ac` key. A value the app doesn't
+  offer, or differing battery and AC values, shows as "Custom" and is never rewritten unless the user picks one.
 
 ## Later candidates (v2 and on)
 
