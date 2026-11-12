@@ -202,6 +202,9 @@ None agreed. Each needs its own yes before work starts.
      and skipped in a chroot image build.
    - Depends: `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, all on the image.
    - Lintian: one warning, no manpage for `/usr/bin/pyra-settings`.
+   - Checked by the owner on the Pyra (0.1, 2026-11-12): "Pyra Settings" is listed in MATE Control Center with
+     `Categories=Settings;` and opens the stub window; `pkexec … set-wake power on` shows the mate-polkit prompt,
+     then the refusal, and a second run within a few minutes doesn't prompt (`auth_admin_keep` works).
 
 Names: the brief in the private notes used `pyra-config`. They are `pyra-settings` here so the package, helper,
 config, unit and polkit action match the app's name.
