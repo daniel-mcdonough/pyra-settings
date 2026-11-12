@@ -60,11 +60,11 @@ Pyra-only ones, and leaves everything else in MATE.
 | Lid action (`button-lid-battery`, `button-lid-ac`) | Both | "Lid suspends" plus shoulder buttons that wake is the bag problem: the two must be seen together |
 | Idle sleep (`sleep-computer-battery`, `sleep-computer-ac`) | Both | It decides when the machine suspends |
 | Critical battery action | Both; Pyra Settings offers a restricted set | Hibernate is unsupported and suspend drains the cell |
-| Display, sound, keyboard layout, mouse and touchpad, appearance, screensaver, notifications | MATE only | Nothing Pyra-specific. The app has "Open in MATE" buttons for Power, Sound and Display |
+| Display, sound, keyboard layout, mouse and touchpad, appearance, screensaver, notifications | MATE only | Nothing Pyra-specific. No "Open in MATE" buttons (owner, 2026-11-12); MATE Control Center is the launcher |
 | Screen brightness | The Pyra Brightness panel applet | It already does it through logind |
 
-The "Open in MATE" buttons are the launcher half of the repo's name: one place to start, without duplicating panels
-that already work.
+The launcher half of the repo's name is the Control Center entry: the app sits next to MATE's panels, without
+duplicating panels that already work.
 
 ## v1 settings
 
@@ -88,7 +88,8 @@ The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kerne
   (`of_node/<node>/label`). The code table is only the fallback for names.
 - Offer the preset "everything except the shoulder buttons" (`102-109,272-273`), the motivating case.
 - Warn when the lid action is `suspend` and a shoulder button still wakes the machine.
-- Warn when neither a game button nor the lid wakes it (only the power button is left). Allowed, but said plainly.
+- No warning when only the power button is left to wake it: the always-on Power button row says it (owner,
+  2026-11-12).
 - Say that a change takes effect at the next suspend.
 - Critical battery: offer `shutdown` only (owner, 2026-11-12). Never `hibernate`, `suspend` or `nothing`.
 - Lid action and idle sleep: one control each, writing both the `-battery` and `-ac` key. A value the app doesn't

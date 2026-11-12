@@ -22,6 +22,7 @@ is here; ask the owner.
 | One lid control, one idle control | Each writes both the `-battery` and `-ac` key | One concept to the user. Differing values show as "Custom" |
 | Status line "Changes apply immediately" | See "Status line" below | Wake changes matter at the next suspend (`design.md`) |
 | Readings strip on Quick settings | v2, with the Status page | Status readings are a v2 candidate |
+| "Open in MATE" buttons (design.md) | Dropped | Control Center already lists MATE's panels |
 
 ## Window
 
@@ -119,14 +120,14 @@ present is hidden.
 
 ## Warnings
 
-Both use the warning banner, at the top of Quick settings and under "Wake sources".
+One warning, in the warning banner, at the top of Quick settings and under "Wake sources".
 
 | When | Text | Action |
 |---|---|---|
 | Lid action is Suspend and any shoulder button wakes (without 0053: game buttons wake) | "Shoulder buttons can wake the Pyra while the lid is closed, for example in a bag." (without 0053: "Game buttons ...") | "Turn off shoulder wake" (without 0053: "Turn off game-button wake") |
-| No game button and not the lid wakes it | Wording to come; it says only the power button can wake the Pyra. Allowed, said plainly (`design.md`) | None |
 
-The second warning's text and whether it has an action aren't in the mockup; ask the owner before building it.
+No warning when only the power button can wake the Pyra: the locked Power button row already says so (owner,
+2026-11-12).
 
 ## Hint bar
 
@@ -140,9 +141,11 @@ The second warning's text and whether it has an action aren't in the mockup; ask
 
 ### Status line
 
-- Idle: empty, or a neutral line; wording to come.
-- After a gsettings write: "Saved" for about 1.5 s.
-- After a helper write: "Saved. Takes effect at the next suspend."
+Every change is written at once, so there is never an unsaved state to show.
+
+- No recent change: no text.
+- After a gsettings write: "Saved" for about 1.5 s, then no text again.
+- After a helper write: "Saved. Takes effect at the next suspend." for a few seconds.
 - Cancelled password or a helper error: the control goes back to its old value and the line says why.
 
 ## Controller and keyboard
@@ -181,9 +184,3 @@ Kept so v2 work starts from the owner's layout. Each needs its own yes (`design.
 - **Sound** (`volume_up`): button Sound Preferences, "Output device, volume and alerts", opens MATE's panel.
 - **Status** (`monitoring`): info rows Battery, Charger, CPU temperature, Battery temperature, CPU frequency.
 - Page order with v2: Quick settings, Suspend & wake, Battery, Display, Keyboard light, Performance, Sound, Status.
-
-## Open questions
-
-- `design.md` promises "Open in MATE" buttons for Power, Sound and Display; the mockup has only Sound, and in v2.
-  Where do the v1 ones go, if anywhere?
-- The "only the power button wakes" warning's text, and the idle status line text.
