@@ -1,7 +1,7 @@
 # Design: features and decisions
 
 Pyra Settings is a small GTK 3 app for the settings only the Pyra has. Version 1 covers suspend and wake: which
-buttons wake the machine, whether the lid wakes it, what the lid does, idle sleep and the critical-battery action.
+buttons wake the machine, whether the lid wakes it, what the lid does and the critical-battery action.
 It ships after the next Pyra image, whose kernel carries dragonbox-pyra `patches/0053` (per-button wake control).
 
 The UI layout is the owner's design, in `docs/ui.md`. This file says what the app does and why, not how it looks.
@@ -29,7 +29,8 @@ The UI layout is the owner's design, in `docs/ui.md`. This file says what the ap
 
 | Decision | Choice | Why |
 |---|---|---|
-| v1 scope | Wake buttons, lid wake, lid action, idle sleep, critical battery | To a user they are one feature: what happens when the Pyra is closed and put in a bag |
+| v1 scope | Wake buttons, lid wake, lid action, critical battery | To a user they are one feature: what happens when the Pyra is closed and put in a bag |
+| Idle sleep | Not in the app; MATE's Power Management panel only (owner, 2026-11-13, NEXT 1.6) | Not Pyra-specific. MATE starts the sleep timer only once the session is idle (`org.mate.session idle-delay`, 30 min from Debian's `10_mate-common.gschema.override`), so "5 min" meant about 35. Showing the real time would mean subtracting a delay that also drives the screen dim and lock |
 | polkit default | `auth_admin_keep`: password once, kept for a few minutes | Every later root-level setting inherits it. `yes` would let any process in the session change root settings |
 | Release timing | After the next Pyra image, which carries the 0053 kernel | Per-button wake needs 0053 |
 | Kernels without 0053 | Keep a one-switch fallback through `power/wakeup` | It costs one file-exists check, and covers the package on an older image |
@@ -60,7 +61,7 @@ Pyra-only ones, and leaves everything else in MATE.
 |---|---|---|
 | Wake buttons, lid wake | Pyra Settings only | Pyra-only and root-level; MATE has no concept of it |
 | Lid action (`button-lid-battery`, `button-lid-ac`) | Both | "Lid suspends" plus shoulder buttons that wake is the bag problem: the two must be seen together |
-| Idle sleep (`sleep-computer-battery`, `sleep-computer-ac`) | Both | It decides when the machine suspends |
+| Idle sleep (`sleep-computer-battery`, `sleep-computer-ac`) | MATE only (owner, 2026-11-13) | See "Idle sleep" in Decisions |
 | Critical battery action | Both; Pyra Settings offers a restricted set | Hibernate is unsupported and suspend drains the cell |
 | Display, sound, keyboard layout, mouse and touchpad, appearance, screensaver, notifications | MATE only | Nothing Pyra-specific. No "Open in MATE" buttons (owner, 2026-11-12); MATE Control Center is the launcher |
 | Screen brightness | The Pyra Brightness panel applet | It already does it through logind |
@@ -76,8 +77,6 @@ duplicating panels that already work.
 | Fallback without 0053 | `pyra-game-buttons/power/wakeup` | Helper, as root | `enabled` |
 | Lid wakes the Pyra | On: `pyra-lid-wakeup/wakeup_switches` = `0` (0053) and `power/wakeup` = `enabled`. Off: `power/wakeup` = `disabled` | Helper, as root | On |
 | Lid action, battery and AC | gsettings `org.mate.power-manager button-lid-battery`, `button-lid-ac` | GUI, as the user | `blank` |
-| Idle sleep, battery and AC | gsettings `org.mate.power-manager sleep-computer-battery`, `sleep-computer-ac` | GUI, as the user | 0 (off) |
-| What idle sleep does | gsettings `org.mate.power-manager action-sleep-type-battery`, `-ac` | GUI, as the user, with an idle time | Upstream `hibernate` / `suspend`; image value unrecorded (NEXT 2.7) |
 | Critical battery action | gsettings `org.mate.power-manager action-critical-battery` | GUI, as the user | `shutdown` (image fix 24) |
 
 The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kernel's rules are in
@@ -95,10 +94,7 @@ The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kerne
   2026-11-12).
 - Say that a change takes effect at the next suspend.
 - Critical battery: offer `shutdown` only (owner, 2026-11-12). Never `hibernate`, `suspend` or `nothing`.
-- Idle sleep suspends, never hibernates (owner, 2026-11-12): picking an idle time other than Never also writes
-  `suspend` to each `action-sleep-type-*` key that holds anything else. Never leaves them alone. The image should
-  default them to `suspend` too (NEXT 2.7), for idle sleep set from MATE's own panel.
-- Lid action and idle sleep: one control each, writing both the `-battery` and `-ac` key. A value the app doesn't
+- Lid action: one control, writing both the `-battery` and `-ac` key. A value the app doesn't
   offer, or differing battery and AC values, shows as "Custom" and is never rewritten unless the user picks one.
 
 ## Later candidates (v2 and on)

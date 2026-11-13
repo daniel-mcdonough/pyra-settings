@@ -140,31 +140,15 @@ class PresetGroupTest(unittest.TestCase):
 class ChoiceValueTest(unittest.TestCase):
     def test_matching_pair(self):
         self.assertEqual(st.choice_value(["suspend", "suspend"], st.LID_OPTIONS), "suspend")
-        self.assertEqual(st.choice_value([600, 600], st.IDLE_OPTIONS), 600)
-        self.assertEqual(st.choice_value([0, 0], st.IDLE_OPTIONS), 0)
 
     def test_custom(self):
         self.assertIsNone(st.choice_value(["suspend", "blank"], st.LID_OPTIONS))
         self.assertIsNone(st.choice_value(["hibernate", "hibernate"], st.LID_OPTIONS))
-        self.assertIsNone(st.choice_value([900, 900], st.IDLE_OPTIONS))
         self.assertIsNone(st.choice_value(["hibernate"], st.CRITICAL_OPTIONS))
         self.assertEqual(st.choice_value(["shutdown"], st.CRITICAL_OPTIONS), "shutdown")
 
     def test_critical_offers_shutdown_only(self):
         self.assertEqual([v for v, _ in st.CRITICAL_OPTIONS], ["shutdown"])
-
-    def test_idle_time_sets_suspend(self):
-        types = {"action-sleep-type-battery": "hibernate", "action-sleep-type-ac": "suspend"}
-        self.assertEqual(st.idle_writes(300, types),
-                         [("sleep-computer-battery", 300), ("sleep-computer-ac", 300),
-                          ("action-sleep-type-battery", "suspend")])
-
-    def test_idle_never_leaves_sleep_type(self):
-        types = {"action-sleep-type-battery": "hibernate", "action-sleep-type-ac": "hibernate"}
-        self.assertEqual(st.idle_writes(0, types), [("sleep-computer-battery", 0), ("sleep-computer-ac", 0)])
-
-    def test_idle_without_sleep_type_keys(self):
-        self.assertEqual(st.idle_writes(600, {}), [("sleep-computer-battery", 600), ("sleep-computer-ac", 600)])
 
 
 class HelperTest(unittest.TestCase):

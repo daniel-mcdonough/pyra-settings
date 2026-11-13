@@ -43,12 +43,8 @@ PRESETS = (
 # gsettings, schema org.mate.power-manager. Each control writes both keys of its pair.
 POWER_SCHEMA = "org.mate.power-manager"
 LID_KEYS = ("button-lid-battery", "button-lid-ac")
-IDLE_KEYS = ("sleep-computer-battery", "sleep-computer-ac")
-# What idle sleep does. Upstream's battery default is hibernate, which the Pyra doesn't support (NEXT 2.7).
-SLEEP_TYPE_KEYS = ("action-sleep-type-battery", "action-sleep-type-ac")
 CRITICAL_KEY = "action-critical-battery"
 LID_OPTIONS = (("suspend", "Suspend"), ("blank", "Blank screen"), ("nothing", "Do nothing"))
-IDLE_OPTIONS = ((300, "5 min"), (600, "10 min"), (1200, "20 min"), (1800, "30 min"), (3600, "1 hr"), (0, "Never"))
 CRITICAL_OPTIONS = (("shutdown", "Shut down"),)
 
 _LIST_RE = re.compile(r"^[0-9]{1,4}(-[0-9]{1,4})?(,[0-9]{1,4}(-[0-9]{1,4})?)*$")
@@ -197,16 +193,6 @@ def choice_value(values, options):
     if any(v != first for v in values):
         return None
     return first if first in [o for o, _ in options] else None
-
-
-def idle_writes(seconds, sleep_types):
-    """The gsettings writes for picking an idle time: both IDLE_KEYS, plus "suspend" for each sleep-type key that
-    holds anything else, so idle sleep never tries to hibernate. "Never" leaves the sleep type alone.
-    sleep_types maps each SLEEP_TYPE_KEYS key the schema has to its value."""
-    writes = [(key, seconds) for key in IDLE_KEYS]
-    if seconds:
-        writes += [(key, "suspend") for key in SLEEP_TYPE_KEYS if key in sleep_types and sleep_types[key] != "suspend"]
-    return writes
 
 
 def wake_error_text(error, root=None):

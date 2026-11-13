@@ -17,8 +17,8 @@
         PYRA_SETTINGS_SYSFS=<sys> PYRA_SETTINGS_HELPER="python3 ../tests/fakehelper.py <sys> <conf>" \
         python3 -m pyra_settings
 
-  `tests/schemas/` is the seven keys the app uses, trimmed from trixie's `mate-power-manager-common`, with the
-  image's defaults (upstream's for the two sleep-type keys). The keyfile backend leaves the values in
+  `tests/schemas/` is the three keys the app uses, trimmed from trixie's `mate-power-manager-common`, with the
+  image's defaults. The keyfile backend leaves the values in
   `<cfg>/glib-2.0/settings/keyfile`, which can be edited before a run to set up "Custom" values. `tests/fakehelper.py` imports the real helper and points it at
   `<sys>` and `<conf>`; `FAKEHELPER_EXIT=126` (or 127, 1, 2) makes it fail without changing anything.
   An empty directory as `<sys>` shows the unreadable-sysfs state.

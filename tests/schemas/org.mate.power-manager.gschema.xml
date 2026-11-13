@@ -21,18 +21,5 @@
     <key name="button-lid-ac" enum="org.mate.power-manager.ActionType">
       <default>'blank'</default>
     </key>
-    <key name="sleep-computer-battery" type="i">
-      <default>0</default>
-    </key>
-    <key name="sleep-computer-ac" type="i">
-      <default>0</default>
-    </key>
-    <!-- Upstream's defaults: the image hasn't overridden these yet (NEXT 2.7). -->
-    <key name="action-sleep-type-battery" enum="org.mate.power-manager.ActionType">
-      <default>'hibernate'</default>
-    </key>
-    <key name="action-sleep-type-ac" enum="org.mate.power-manager.ActionType">
-      <default>'suspend'</default>
-    </key>
   </schema>
 </schemalist>

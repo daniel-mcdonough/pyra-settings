@@ -352,7 +352,7 @@ class PyraSettingsWindow(Gtk.Window):
     def _open_settings(self):
         source = Gio.SettingsSchemaSource.get_default()
         if source is None or source.lookup(st.POWER_SCHEMA, True) is None:
-            print("pyra-settings: schema %s not installed; lid, idle and battery settings are off"
+            print("pyra-settings: schema %s not installed; lid and battery settings are off"
                   % st.POWER_SCHEMA)
             return None
         return Gio.Settings.new(st.POWER_SCHEMA)
@@ -365,26 +365,14 @@ class PyraSettingsWindow(Gtk.Window):
             self.wake, self.wake_error = None, st.wake_error_text(e)
 
     def _get(self, key):
-        value = self.settings.get_value(key)
-        return value.get_int32() if value.get_type_string() == "i" else self.settings.get_string(key)
+        return self.settings.get_string(key)
 
     def _values(self, keys):
         return [self._get(k) for k in keys] if self.settings else [None] * len(keys)
 
     def set_gsettings(self, keys, value):
-        self._write_gsettings([(key, value) for key in keys])
-
-    def set_idle(self, seconds):
-        schema = self.settings.props.settings_schema
-        types = {k: self._get(k) for k in st.SLEEP_TYPE_KEYS if schema.has_key(k)}
-        self._write_gsettings(st.idle_writes(seconds, types))
-
-    def _write_gsettings(self, writes):
-        for key, value in writes:
-            if isinstance(value, int):
-                self.settings.set_int(key, value)
-            else:
-                self.settings.set_string(key, value)
+        for key in keys:
+            self.settings.set_string(key, value)
         self.status(st.SAVED, SAVED_MS)
 
     def set_wake_codes(self, codes):
@@ -475,13 +463,6 @@ class PyraSettingsWindow(Gtk.Window):
                          lambda v: self.set_gsettings(st.LID_KEYS, v), self._focus_row,
                          sensitive=bool(self.settings))
 
-    def _idle_row(self):
-        values = self._values(st.IDLE_KEYS)
-        current = st.choice_value(values, st.IDLE_OPTIONS) if self.settings else None
-        return ChoiceRow("idle", "Sleep when idle for", self._custom_sub(current), st.IDLE_OPTIONS, current,
-                         self.set_idle, self._focus_row,
-                         sensitive=bool(self.settings))
-
     def _custom_sub(self, current):
         if not self.settings:
             return "MATE power settings not found"
@@ -515,13 +496,12 @@ class PyraSettingsWindow(Gtk.Window):
     def _quick_rows(self):
         has_0053 = self.wake.has_0053 if self.wake else False
         return (self._warning_rows("quick-warning") + [self._lid_row()] + self._game_rows(False)
-                + [self._idle_row(),
-                   ButtonRow("more", "More wake options",
+                + [ButtonRow("more", "More wake options",
                              "Choose individual buttons, lid wake" if has_0053 else "Lid wake", "Open",
                              self._open_wake_page)])
 
     def _wake_rows(self):
-        rows = [HeaderRow("h-sleep", "Sleep"), self._lid_row(), self._idle_row(),
+        rows = [HeaderRow("h-sleep", "Sleep"), self._lid_row(),
                 HeaderRow("h-wake", "Wake sources")]
         rows += self._warning_rows("wake-warning") + self._game_rows(True)
         rows.append(LockedRow("power", "Power button", "Can't be turned off, so the Pyra can always be woken."))

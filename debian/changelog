@@ -1,3 +1,11 @@
+pyra-settings (0.5) trixie; urgency=medium
+
+  * Idle sleep dropped: MATE's Power Management panel keeps it. MATE starts
+    the sleep timer only after the session's 30 min idle delay, so the
+    app's "5 min" meant about 35 (NEXT 1.6).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Fri, 13 Nov 2026 00:15:00 +0000
+
 pyra-settings (0.4) trixie; urgency=medium
 
   * Suspend & wake page icon: the app ships its own crescent moon

@@ -19,7 +19,7 @@ is here; ask the owner.
 | In-app "Authenticate" dialog with A/B buttons | MATE's polkit agent (mate-polkit) shows its own dialog | pkexec's prompt belongs to the agent; the app can't style it |
 | Lock icon disappears after the first password | The lock stays on every root row | `auth_admin_keep` expires after a few minutes and the app can't tell when |
 | Critical battery: "Shut down" / "Power off" | "Shut down" only | The two were the same action |
-| One lid control, one idle control | Each writes both the `-battery` and `-ac` key | One concept to the user. Differing values show as "Custom" |
+| One lid control, one idle control | The lid control writes both the `-battery` and `-ac` key; no idle control (owner, 2026-11-13: idle sleep left to MATE, `design.md`) | One concept to the user. Differing values show as "Custom" |
 | Status line "Changes apply immediately" | See "Status line" below | Wake changes matter at the next suspend (`design.md`) |
 | Readings strip on Quick settings | v2, with the Status page | Status readings are a v2 candidate |
 | "Open in MATE" buttons (design.md) | Dropped | Control Center already lists MATE's panels |
@@ -85,14 +85,13 @@ The app never rewrites a value the user didn't touch.
 3. With 0053: choice **Game buttons that wake the Pyra**: All but shoulders / All / None. Subtitle "Power button
    always wakes", or "Custom selection" when the buttons match no preset.
    Without 0053: switch **Game buttons wake the Pyra**, subtitle "Per-button control needs a newer kernel."
-4. Choice: **Sleep when idle for**: 5 min / 10 min / 20 min / 30 min / 1 hr / Never.
-5. Button: **More wake options**, subtitle "Choose individual buttons, lid wake" (without 0053: "Lid wake"),
+4. Button: **More wake options**, subtitle "Choose individual buttons, lid wake" (without 0053: "Lid wake"),
    action "Open". Opens Suspend & wake with the focus in the page.
 
 ### Suspend & wake
 
 1. Header **Sleep**.
-2. The lid choice and the idle choice, as on Quick settings.
+2. The lid choice, as on Quick settings.
 3. Header **Wake sources**.
 4. The warnings, if any.
 5. With 0053: the preset choice, then four switches:
@@ -186,7 +185,7 @@ case were reviewed by the owner (2026-11-12) and moved into "Status line" above;
   `battery-good-symbolic`; lock `changes-prevent-symbolic`.
 - A choice row showing "Custom": A or Right picks the first option, Left the last.
 - Y / X with the focus in the page: the focus goes to the first row of the new page.
-- `org.mate.power-manager` not installed: the lid, idle and battery rows are insensitive, subtitle "MATE power
+- `org.mate.power-manager` not installed: the lid and battery rows are insensitive, subtitle "MATE power
   settings not found".
 - Greyed-out rows still take the focus; A and ◀▶ do nothing on them.
 - Hint glyphs are fixed dark badges (`#333`, white text), not theme colours, as the mockup's are.
