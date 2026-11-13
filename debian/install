@@ -4,3 +4,4 @@ src/pyra_settings usr/share/pyra-settings
 data/org.pyra.settings.wake.policy usr/share/polkit-1/actions
 data/pyra-settings-apply.service usr/lib/systemd/system
 data/pyra-settings.desktop usr/share/applications
+data/icons/pyra-settings-suspend-symbolic.svg usr/share/icons/hicolor/scalable/status

@@ -4,6 +4,8 @@ The app keeps its own focus (sidebar or a page row) instead of GTK's, because th
 are Home, End, PgUp and PgDn, which GTK widgets would take. No widget can take keyboard focus.
 """
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -48,10 +50,12 @@ CSS = b"""
 
 PAGES = (
     ("quick", "Quick settings", "preferences-system-symbolic", "The settings you change most, in one place."),
-    ("wake", "Suspend & wake", "weather-clear-night-symbolic", "When the Pyra sleeps, and what wakes it up."),
+    ("wake", "Suspend & wake", "pyra-settings-suspend-symbolic", "When the Pyra sleeps, and what wakes it up."),
     ("battery", "Battery", "battery-good-symbolic", "What happens when the battery runs low."),
 )
 LOCK_ICON = "changes-prevent-symbolic"
+# The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
+SOURCE_ICONS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "icons")
 SCROLL_MARGIN = 60
 SAVED_MS = 3000
 SAVED_WAKE_MS = 4000
@@ -281,6 +285,8 @@ class PyraSettingsWindow(Gtk.Window):
         super().__init__(title="Pyra Settings")
         self.set_icon_name("preferences-system")
         self.set_default_size(1280, 720)
+        if os.path.isdir(SOURCE_ICONS):
+            Gtk.IconTheme.get_default().append_search_path(SOURCE_ICONS)
         provider = Gtk.CssProvider()
         provider.load_from_data(CSS)
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), provider,

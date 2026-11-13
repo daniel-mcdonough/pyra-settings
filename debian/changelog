@@ -1,3 +1,11 @@
+pyra-settings (0.4) trixie; urgency=medium
+
+  * Suspend & wake page icon: the app ships its own crescent moon
+    (hicolor), as the mate icon theme's night icon reads as a grey disc at
+    sidebar size (NEXT 1.6).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 12 Nov 2026 23:30:00 +0000
+
 pyra-settings (0.3) trixie; urgency=medium
 
   * Idle sleep suspends: picking an idle time also sets MATE's idle sleep
