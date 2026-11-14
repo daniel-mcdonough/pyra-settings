@@ -92,6 +92,14 @@ built-in value applies.
 - The path and the restart command are module constants (`VOLUMED_PATH`, `VOLUMED_RESTART`). Tests:
   `tests/test_volumed.py`.
 
+## The page (state.py, NEXT 4.11)
+
+Layout: `ui.md`, "Volume wheel". `state.py` `parse_volumed` mirrors the daemon's `sscanf` reading, quirks
+included (`cal16 ...` and `range 7+28` read; `range 629` is one number and the line is ignored). The preset steps
+and the built-in values are `VOLUME_ROWS` and `VOLUMED_DEFAULTS`; `tests/test_state.py` `VolumePageTest` checks
+that the helper accepts every preset pair and every calibration the page would send, and that the GUI's limits
+match the helper's. `read_wheel_raw` finds palmas-gpadc by `name` under `/sys/bus/iio/devices`.
+
 ## On the Pyra (NEXT 4.10, 2026-11-14)
 
 Checked on the running unit (kernel without 0053, pyra-settings 0.8). The helper was run with `sudo` over ssh,

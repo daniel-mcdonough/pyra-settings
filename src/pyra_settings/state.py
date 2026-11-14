@@ -1,9 +1,10 @@
 """What the GUI shows and asks for, without GTK: sysfs wake state, gsettings values, the nub settings, helper
-commands and their results (NEXT 1.3, 4.6). The rules are docs/design.md "v1 settings" and docs/nubs.md; the
-presets, groups, warning and nub options are docs/ui.md.
+commands and their results (NEXT 1.3, 4.6, 4.11). The rules are docs/design.md "v1 settings", docs/nubs.md and
+docs/volume-wheel.md; the presets, groups, warning, nub and volume wheel options are docs/ui.md.
 
-The GUI reads sysfs and /etc/pyrainput.cfg and never writes them. PYRA_SETTINGS_SYSFS and PYRA_SETTINGS_PYRAINPUT
-point it at fake files on the PC; the helper never reads either variable.
+The GUI reads sysfs, /etc/pyrainput.cfg and /etc/pyra_volumed.conf and never writes them. PYRA_SETTINGS_SYSFS,
+PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED and PYRA_SETTINGS_IIO point it at fake files on the PC; the helper
+never reads any of these variables.
 """
 
 import os
@@ -14,6 +15,8 @@ from collections import namedtuple
 
 SYSFS_ROOT = os.environ.get("PYRA_SETTINGS_SYSFS", "/sys/devices/platform")
 PYRAINPUT_PATH = os.environ.get("PYRA_SETTINGS_PYRAINPUT", "/etc/pyrainput.cfg")
+VOLUMED_PATH = os.environ.get("PYRA_SETTINGS_VOLUMED", "/etc/pyra_volumed.conf")
+IIO_ROOT = os.environ.get("PYRA_SETTINGS_IIO", "/sys/bus/iio/devices")
 GAME_DEV = "pyra-game-buttons"
 LID_DEV = "pyra-lid-wakeup"
 SW_LID = 0
@@ -416,6 +419,159 @@ def read_volumed_check(binary=None):
     except (OSError, subprocess.SubprocessError):
         return VOLUMED_MISSING
     return volumed_check(out.stdout if out.returncode == 0 else None, binary)
+
+
+# The volume wheel page (docs/ui.md "Volume wheel", docs/volume-wheel.md): the file as the daemon reads it, the
+# preset steps, and the guided calibration.
+VOLUMED_RANGE_MAX = {"range": 29, "hsrange": 15}
+VOLUMED_DEFAULTS = {"cal": (16, 144, 394, 1071, 2068), "range": (6, 29), "hsrange": (0, 15)}
+# Choice rows: key, row key, label, which end, options as (step, button text). Speakers step = (dB + 52) / 2,
+# headphones (dB + 30) / 2. The built-in values are among the options.
+VOLUME_ROWS = {
+    "range": (("lo", "Quietest", ((0, "Lowest"), (6, "Quiet"), (10, "Low"), (14, "Medium"))),
+              ("hi", "Loudest", ((26, "Normal"), (29, "Max")))),
+    "hsrange": (("lo", "Quietest", ((0, "Lowest"), (3, "Quiet"), (6, "Low"))),
+                ("hi", "Loudest", ((12, "Reduced"), (15, "Max")))),
+}
+_NUM = r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?(?![0-9])"
+# sscanf(" cal %lf %lf %lf %lf %lf"), sscanf(" range %ld %ld"): %lf and %ld skip blanks before the number, so
+# none are needed after the keyword or between numbers, and anything after the last number is ignored.
+_VOLUMED_CAL_RE = re.compile(r"^\s*cal" + r"\s*(%s)" % _NUM * 5, re.ASCII)
+_VOLUMED_RANGE_RE = {key: re.compile(r"^\s*%s\s*([+-]?[0-9]+)(?![0-9])\s*([+-]?[0-9]+)" % key, re.ASCII)
+                     for key in VOLUMED_RANGE_MAX}
+
+
+class VolumeState:
+    """What pyra_volumed reads from its file: cal (five numbers), range and hsrange ((lo, hi)), the built-in
+    value where the file has no valid line."""
+
+    def __init__(self, values):
+        self.values = dict(values)
+
+    def with_values(self, changes):
+        values = dict(self.values)
+        for key, value in changes.items():
+            values[key] = VOLUMED_DEFAULTS[key] if value is None else tuple(value)
+        return VolumeState(values)
+
+    def __repr__(self):
+        return "VolumeState(%r)" % self.values
+
+
+def _number(text):
+    value = float(text)
+    return int(value) if value.is_integer() else value
+
+
+def parse_volumed(text):
+    """The file's text as a VolumeState. A later valid line wins; a line the daemon would ignore (a short cal, a
+    value out of range, not rising) leaves the earlier value."""
+    values = dict(VOLUMED_DEFAULTS)
+    for line in text.splitlines():
+        m = _VOLUMED_CAL_RE.match(line)
+        if m:
+            cal = tuple(_number(g) for g in m.groups())
+            if cal[0] > 0 and all(b > a for a, b in zip(cal, cal[1:])):
+                values["cal"] = cal
+            continue
+        for key, regex in _VOLUMED_RANGE_RE.items():
+            m = regex.match(line)
+            if m:
+                lo, hi = int(m.group(1)), int(m.group(2))
+                if 0 <= lo < hi <= VOLUMED_RANGE_MAX[key]:
+                    values[key] = (lo, hi)
+    return VolumeState(values)
+
+
+def read_volumed(path=None):
+    """Read /etc/pyra_volumed.conf. A missing file is all built-in values; other errors raise OSError."""
+    try:
+        with open(path or VOLUMED_PATH) as f:
+            text = f.read()
+    except FileNotFoundError:
+        text = ""
+    return parse_volumed(text)
+
+
+def volumed_error_text(error):
+    return "Can't read the volume wheel settings: %s" % _error_detail(error)
+
+
+def current_end(volume, key, end, options):
+    """The option a range's lo or hi matches, or None ("Custom")."""
+    value = volume.values[key][0 if end == "lo" else 1]
+    return value if value in [o for o, _ in options] else None
+
+
+def end_changes(volume, key, end, step):
+    """{key: (lo, hi)} with one end set to step and the other kept."""
+    lo, hi = volume.values[key]
+    return {key: (step, hi) if end == "lo" else (lo, step)}
+
+
+def volume_argv(changes):
+    """set-volume arguments for {key: values}; None is "default"."""
+    args = ["%s=%s" % (key, "default" if value is None else " ".join(map(str, value)))
+            for key, value in changes.items()]
+    return helper_command() + ["set-volume"] + args
+
+
+def format_cal(cal):
+    return " ".join(map(str, cal))
+
+
+def read_wheel_raw(root=None):
+    """in_voltage2_raw of the palmas-gpadc IIO device (its number changes between boots). Raises OSError or
+    ValueError."""
+    root = root or IIO_ROOT
+    for name in sorted(os.listdir(root)):
+        dev = os.path.join(root, name)
+        try:
+            if _read(os.path.join(dev, "name")) != "palmas-gpadc":
+                continue
+        except OSError:
+            continue
+        return int(_read(os.path.join(dev, "in_voltage2_raw")))
+    raise FileNotFoundError(2, "no palmas-gpadc device", root)
+
+
+CAL_MARKS = ("all the way down", "a quarter of the way up", "half way up", "three quarters of the way up",
+             "all the way up")
+CAL_SAMPLES = 5          # readings averaged for one mark
+CAL_SAMPLE_MS = 100      # apart, so a mark takes about half a second
+VOLUMED_RAW_MAX = 4095   # palmas-gpadc is 12-bit
+
+
+class Calibration:
+    """The guided calibration: one reading per mark in CAL_MARKS, bottom to top."""
+
+    def __init__(self):
+        self.points = []
+
+    @property
+    def done(self):
+        return len(self.points) == len(CAL_MARKS)
+
+    def prompt(self):
+        return "Step %d of %d: turn the wheel %s" % (len(self.points) + 1, len(CAL_MARKS),
+                                                     CAL_MARKS[len(self.points)])
+
+    def record(self, samples):
+        """Add the mark's reading: the mean of samples, rounded."""
+        self.points.append(int(round(sum(samples) / len(samples))))
+
+    def problem(self):
+        """None if the daemon would take the points as cal, else why not (the helper's checks)."""
+        p = self.points
+        if p[0] < 1:
+            return "the wheel read 0 all the way down"
+        for i in range(1, len(p)):
+            if p[i] <= p[i - 1]:
+                return "the wheel read %d %s, not more than %d %s" % (p[i], CAL_MARKS[i], p[i - 1],
+                                                                     CAL_MARKS[i - 1])
+        if p[-1] > VOLUMED_RAW_MAX:
+            return "the wheel read more than %d" % VOLUMED_RAW_MAX
+        return None
 
 
 def helper_command():

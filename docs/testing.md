@@ -26,6 +26,11 @@
   `FAKEHELPER_PYRAINPUT=<same file>` (where the fake helper's `set-nubs` writes; it skips the pyrainput reload).
   A missing file shows the built-in values, a `chmod 0` one the unreadable state, and appending
   `profile.9 = <path>` / `profile.current = 9` the game-profile info row (it is reread on opening the page).
+- Volume wheel page on the PC: `PYRA_SETTINGS_VOLUMED=<conf file>` and `FAKEHELPER_VOLUMED=<same file>` (the
+  fake helper skips the pyra_volumed restart), `PYRA_SETTINGS_IIO=<dir>` with `<dir>/iio:device0/name` =
+  `palmas-gpadc` and an `in_voltage2_raw` to edit during a calibration. The check fails on a PC (no
+  pyra_volumed unit), so the page shows its note; to see the controls, start the window from a short script that
+  first patches it: `mock.patch.object(state, "read_volumed_check", lambda *a: "ok").start()`.
 - Headless: `Xvfb :91 -screen 0 1280x720x24`, `DISPLAY=:91 GDK_BACKEND=x11` (on a Wayland desktop GTK
   otherwise opens the window there, not on the Xvfb), `xdotool key Home Down Left` for the controller
   keys (A = Home, B = End, Y/X = Page_Up/Page_Down), `import -window root -resize 50%` for screenshots.

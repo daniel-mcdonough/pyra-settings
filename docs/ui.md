@@ -7,9 +7,13 @@ is here; ask the owner.
 ## Status
 
 - Agreed for v1 (2026-11-12), with the owner's answers to the review below ("Decisions on the mockup").
-- v2 pages are sketched but not agreed (`design.md`, "Later candidates"). Don't build them, except Nubs.
+- v2 pages are sketched but not agreed (`design.md`, "Later candidates"). Don't build them, except Nubs and
+  Volume wheel.
 - Nubs page agreed (2026-11-14, NEXT 4.6): drafted from the row kinds below, since the mockup has no nub page,
   and settled with the owner ("Nubs" under "Pages").
+- Volume wheel page agreed (2026-11-14, NEXT 4.11), the same way ("Volume wheel" under "Pages"). The mockup's
+  only volume item is the Sound page's button to MATE's panel (the untracked `pyra-settings-configuration-app-ui-plan/`
+  bundle is that mockup).
 
 ## Decisions on the mockup
 
@@ -50,6 +54,7 @@ v1 pages, in order:
 | Suspend & wake | `bedtime` | When the Pyra sleeps, and what wakes it up. |
 | Battery | `battery_5_bar` | What happens when the battery runs low. |
 | Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
+| Volume wheel (v2) | `audio-volume-high-symbolic` | How the wheel sets the speaker and headphone volume. |
 
 ## Page area
 
@@ -168,6 +173,50 @@ agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every r
 - After a save: "Saved" for 3 s. The daemon reloads, so it applies on the next nub movement, not at a suspend.
 - File unreadable (not missing): the rows stay, greyed out, no option selected; the status line's idle text says "Can't read the
   nub settings: <error> (<file>)", as for sysfs.
+
+### Volume wheel
+
+Not in the mockup. Drafted for NEXT 4.11 from the row kinds above and agreed with the owner, 2026-11-14. Keys,
+file syntax and the daemons: `volume-wheel.md`. Every row but the info row goes through `set-volume`, so each has
+the lock.
+
+When the check (`volume-wheel.md`, "The check") fails, the page holds one row with its `VOLUMED_NOTES` line and
+nothing else. Otherwise:
+
+1. Header **Speakers** (`range`, steps of Handsfree Playback Volume).
+2. Choice **Quietest**: Lowest 0 / Quiet 6 / Low 10 / Medium 14 (-52 / -40 / -32 / -24 dB), the range's `lo`.
+3. Choice **Loudest**: Normal 26 / Max 29 (0 / +6 dB), the range's `hi`.
+4. Button **Speaker defaults**, subtitle "Quiet to Max", action "Reset": `range=default`.
+5. Header **Headphones** (`hsrange`, steps of Headset Playback Volume).
+6. Choice **Quietest**: Lowest 0 / Quiet 3 / Low 6 (-30 / -24 / -18 dB).
+7. Choice **Loudest**: Reduced 12 / Max 15 (-6 / 0 dB).
+8. Button **Headphone defaults**, subtitle "Lowest to Max", action "Reset": `hsrange=default`.
+9. Header **Calibration**.
+10. Info **Wheel reading**: `in_voltage2_raw` of palmas-gpadc, live (read every 250 ms while the page is shown);
+    "Can't read" when there is no such device.
+11. Button **Calibrate**, subtitle "Turn the wheel to each mark", action "Start". The guided calibration runs in
+    place on this row (owner, 2026-11-14): the subtitle becomes "Step N of 5: turn the wheel all the way down"
+    (then a quarter of the way up, half way up, three quarters of the way up, all the way up), the action
+    "Record", and the hint bar A Record, B Cancel. A records the mark: the mean of 5 readings 100 ms apart. After
+    the fifth, the five values go to `set-volume cal=...` (one password). Readings that the daemon would ignore
+    (the bottom reads 0, or a mark not above the one before) save nothing; the status line says which, for 8 s.
+    B, or moving the focus off the row (any key or tap, a page change), cancels: "Calibration cancelled.
+    Nothing changed." While it runs the other rows are greyed out. Greyed out itself when the wheel can't be read.
+12. Button **Calibration defaults**, subtitle the built-in values "16 144 394 1071 2068", action "Reset":
+    `cal=default`.
+
+- Labels on the buttons are the words only; the steps are what is written (owner, 2026-11-14). Each built-in
+  value is one of the options (Quiet to Max, Lowest to Max).
+- Picking one end writes the range with the other end as it is (`range=14 29`). Every `lo` option is below every
+  `hi` option, so any pick is valid.
+- The page reads `/etc/pyra_volumed.conf` the way the daemon does (`volume-wheel.md`, "File syntax"): a later
+  valid line wins, a line the daemon would ignore is ignored. A value no option matches shows "Custom" in the
+  subtitle. It rereads the file each time the page is opened.
+- After a save: "Saved" for 3 s. The helper restarts pyra_volumed, so it applies at once.
+- File unreadable (not missing): the rows stay, greyed out, no option selected; the status line's idle text says
+  "Can't read the volume wheel settings: <error> (<file>)".
+- A raised `lo` makes the wheel flutter at the bottom until pyra-hacks fixes NEXT 4.12 (`volume-wheel.md`,
+  "Quirk"). The owner chose to fix the daemon rather than limit the page; the page doesn't ship before the fix.
 
 ## Warnings
 

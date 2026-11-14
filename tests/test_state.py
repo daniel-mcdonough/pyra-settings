@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 
 import fakesysfs
+from test_helper import helper
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
@@ -368,6 +369,123 @@ class VolumedCheckTest(unittest.TestCase):
 
     def test_every_failure_has_a_note(self):
         self.assertEqual(set(st.VOLUMED_NOTES), {st.VOLUMED_MISSING, st.VOLUMED_OVERRIDDEN, st.VOLUMED_NO_CONF})
+
+
+class VolumePageTest(unittest.TestCase):
+    """The volume wheel page's reading and changes (NEXT 4.11, docs/ui.md "Volume wheel")."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = tmp.name
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop(st.HELPER_ENV, None)
+
+    def test_missing_file_is_built_in(self):
+        v = st.read_volumed(os.path.join(self.tmp, "none"))
+        self.assertEqual(v.values, {"cal": (16, 144, 394, 1071, 2068), "range": (6, 29), "hsrange": (0, 15)})
+
+    def test_unreadable_file_raises(self):
+        with self.assertRaises(OSError):
+            st.read_volumed(self.tmp)
+
+    def test_parse_as_the_daemon(self):
+        v = st.parse_volumed("# comment\n  cal 20 150 400 1100 2100\nrange 10 29\nhsrange 4 15 trailing\n")
+        self.assertEqual(v.values, {"cal": (20, 150, 400, 1100, 2100), "range": (10, 29), "hsrange": (4, 15)})
+
+    def test_later_valid_line_wins_bad_line_ignored(self):
+        v = st.parse_volumed("range 10 29\nrange 8 26\nrange 3 2\nrange 0 30\nhsrange 0 16\n"
+                             "cal 16 144 394\ncal 0 1 2 3 4\ncal 5 4 6 7 8\n")
+        self.assertEqual(v.values["range"], (8, 26))
+        self.assertEqual(v.values["hsrange"], (0, 15))
+        self.assertEqual(v.values["cal"], (16, 144, 394, 1071, 2068))
+
+    def test_sscanf_quirks(self):
+        # %lf and %ld skip blanks, so "cal16" and "range 6+29" read; "range 629" is one number; keywords are
+        # case-sensitive and "hsrange" isn't "range".
+        v = st.parse_volumed("cal16 144 394 1071 2069\nrange 7+28\nRange 8 27\nhsrange 2 14\n")
+        self.assertEqual(v.values, {"cal": (16, 144, 394, 1071, 2069), "range": (7, 28), "hsrange": (2, 14)})
+        self.assertEqual(st.parse_volumed("range 629\n").values["range"], (6, 29))
+        self.assertEqual(st.parse_volumed("cal 16.5 144 394 1071 2068\n").values["cal"][0], 16.5)
+
+    def test_built_in_values_are_options(self):
+        v = st.parse_volumed("")
+        for key, rows in st.VOLUME_ROWS.items():
+            for end, _label, options in rows:
+                self.assertIsNotNone(st.current_end(v, key, end, options), (key, end))
+
+    def test_custom_end(self):
+        v = st.parse_volumed("range 8 27\n")
+        lo, hi = st.VOLUME_ROWS["range"]
+        self.assertIsNone(st.current_end(v, "range", "lo", lo[2]))
+        self.assertIsNone(st.current_end(v, "range", "hi", hi[2]))
+
+    def test_end_changes_keep_the_other_end(self):
+        v = st.parse_volumed("range 8 27\n")
+        self.assertEqual(st.end_changes(v, "range", "lo", 10), {"range": (10, 27)})
+        self.assertEqual(st.end_changes(v, "range", "hi", 29), {"range": (8, 29)})
+        self.assertEqual(v.with_values({"range": (10, 27), "cal": None}).values["range"], (10, 27))
+
+    def test_every_preset_pair_is_valid(self):
+        # Any lo option with any hi option: the helper and the daemon take it.
+        for key, (lo, hi) in st.VOLUME_ROWS.items():
+            for a, _ in lo[2]:
+                for b, _ in hi[2]:
+                    self.assertTrue(0 <= a < b <= st.VOLUMED_RANGE_MAX[key], (key, a, b))
+                    self.assertEqual(helper.check_volumed_value(key, "%d %d" % (a, b)), "%d %d" % (a, b))
+
+    def test_constants_match_the_helper(self):
+        self.assertEqual(st.VOLUMED_RANGE_MAX, helper.VOLUMED_RANGE_MAX)
+        self.assertEqual(st.VOLUMED_RAW_MAX, helper.VOLUMED_RAW_MAX)
+        self.assertEqual(len(st.CAL_MARKS), helper.VOLUMED_NCAL)
+
+    def test_argv(self):
+        self.assertEqual(st.volume_argv({"range": (10, 29)}), ["pkexec", st.HELPER, "set-volume", "range=10 29"])
+        self.assertEqual(st.volume_argv({"range": None, "hsrange": None})[-2:],
+                         ["range=default", "hsrange=default"])
+        self.assertEqual(st.volume_argv({"cal": (20, 150, 400, 1100, 2100)})[-1], "cal=20 150 400 1100 2100")
+
+    def iio(self, devices):
+        root = os.path.join(self.tmp, "iio")
+        for name, dev, raw in devices:
+            os.makedirs(os.path.join(root, dev))
+            write(os.path.join(root, dev, "name"), name)
+            if raw is not None:
+                write(os.path.join(root, dev, "in_voltage2_raw"), raw)
+        return root
+
+    def test_wheel_raw_finds_palmas_gpadc(self):
+        root = self.iio([("other-adc", "iio:device0", "5"), ("palmas-gpadc", "iio:device1", "387")])
+        self.assertEqual(st.read_wheel_raw(root), 387)
+
+    def test_wheel_raw_errors(self):
+        with self.assertRaises(OSError):
+            st.read_wheel_raw(self.iio([("other-adc", "iio:device0", "5")]))
+        with self.assertRaises(OSError):
+            st.read_wheel_raw(os.path.join(self.tmp, "none"))
+        with self.assertRaises(OSError):
+            st.read_wheel_raw(self.iio([("palmas-gpadc", "iio:device0", None)]))
+
+    def test_calibration(self):
+        c = st.Calibration()
+        self.assertEqual(c.prompt(), "Step 1 of 5: turn the wheel all the way down")
+        for samples in ((15, 16, 17), (140, 145), (390, 398), (1070, 1072), (2060, 2071)):
+            self.assertFalse(c.done)
+            c.record(samples)
+        self.assertTrue(c.done)
+        self.assertEqual(c.points, [16, 142, 394, 1071, 2066])
+        self.assertIsNone(c.problem())
+        self.assertEqual(helper.check_volumed_value("cal", st.format_cal(c.points)), "16 142 394 1071 2066")
+
+    def test_calibration_problems(self):
+        for points, word in (([0, 100, 200, 300, 400], "0"), ([10, 100, 100, 300, 400], "half way up"),
+                             ([10, 100, 200, 300, 4096], "4095")):
+            c = st.Calibration()
+            for p in points:
+                c.record([p])
+            self.assertIn(word, c.problem())
 
 
 if __name__ == "__main__":

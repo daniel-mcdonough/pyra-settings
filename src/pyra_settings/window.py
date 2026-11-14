@@ -1,4 +1,4 @@
-"""The Pyra Settings window (NEXT 1.3, Nubs 4.6): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
+"""The Pyra Settings window (NEXT 1.3, Nubs 4.6, Volume wheel 4.11): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
 
 The app keeps its own focus (sidebar or a page row) instead of GTK's, because the Pyra's A, B, Y and X buttons
 are Home, End, PgUp and PgDn, which GTK widgets would take. No widget can take keyboard focus.
@@ -53,8 +53,11 @@ PAGES = (
     ("wake", "Suspend & wake", "pyra-settings-suspend-symbolic", "When the Pyra sleeps, and what wakes it up."),
     ("battery", "Battery", "battery-good-symbolic", "What happens when the battery runs low."),
     ("nubs", "Nubs", "input-mouse-symbolic", "What the nubs do, and how fast they move."),
+    ("volume", "Volume wheel", "audio-volume-high-symbolic", "How the wheel sets the speaker and headphone volume."),
 )
 NUBS_PAGE = 3
+VOLUME_PAGE = 4
+WHEEL_POLL_MS = 250
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
 SOURCE_ICONS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "icons")
@@ -127,9 +130,19 @@ class HeaderRow(Row):
 class InfoRow(Row):
     def __init__(self, key, label, value, subtitle="", dimmed=False):
         super().__init__(key, label, subtitle)
-        self.box.pack_end(_label(value, "pyra-row-value", xalign=1.0), False, False, 0)
+        self.value = _label(value, "pyra-row-value", xalign=1.0)
+        self.box.pack_end(self.value, False, False, 0)
         if dimmed:
             self.box.set_opacity(0.5)
+
+
+class NoteRow(Row):
+    """One line of explanation in place of a page's controls."""
+
+    def __init__(self, key, text):
+        super().__init__(key, "")
+        self.box.foreach(self.box.remove)
+        self.box.pack_start(_label(text, "pyra-row-label", wrap=True), True, True, 0)
 
 
 class LockedRow(Row):
@@ -299,6 +312,12 @@ class PyraSettingsWindow(Gtk.Window):
         self.wake_error = None
         self.nubs = None
         self.nub_error = None
+        self.volume = None
+        self.volume_error = None
+        self.cal = None             # st.Calibration while the guided calibration runs
+        self.cal_samples = None     # readings for the current mark while it is being recorded
+        self.wheel_raw = None
+        self.reading_row = None
         self.busy = False
         self.saved = st.SAVED_WAKE
         self.page = 0
@@ -349,8 +368,12 @@ class PyraSettingsWindow(Gtk.Window):
             self.settings.connect("changed", lambda *_: self.rebuild())
         self.read_wake()
         self.read_nubs()
+        # Once: a restart of the daemon doesn't change the result (docs/volume-wheel.md "The check").
+        self.volumed = st.read_volumed_check()
+        self.read_volume()
         self.rebuild()
         self._clear_status()
+        GLib.timeout_add(WHEEL_POLL_MS, self._poll_wheel)
         self.maximize()
 
     # State
@@ -379,6 +402,16 @@ class PyraSettingsWindow(Gtk.Window):
         except OSError as e:
             self.nubs, self.nub_error = None, st.nub_error_text(e)
         return old != ((self.nubs.values, self.nubs.profile) if self.nubs else None)
+
+    def read_volume(self):
+        """Read /etc/pyra_volumed.conf; True if what the page shows changed."""
+        old = self.volume.values if self.volume else None
+        try:
+            self.volume = st.read_volumed()
+            self.volume_error = None
+        except OSError as e:
+            self.volume, self.volume_error = None, st.volumed_error_text(e)
+        return old != (self.volume.values if self.volume else None)
 
     def _get(self, key):
         return self.settings.get_string(key)
@@ -412,7 +445,11 @@ class PyraSettingsWindow(Gtk.Window):
         """set-nubs; the daemon reloads, so it applies at once, not at the next suspend."""
         self.run_helper(st.nubs_argv(changes), saved=st.SAVED, nubs=self.nubs.with_values(changes))
 
-    def run_helper(self, argv, saved=st.SAVED_WAKE, wake=None, nubs=None):
+    def set_volume(self, changes):
+        """set-volume; the helper restarts pyra_volumed, so it applies at once."""
+        self.run_helper(st.volume_argv(changes), saved=st.SAVED, volume=self.volume.with_values(changes))
+
+    def run_helper(self, argv, saved=st.SAVED_WAKE, wake=None, nubs=None, volume=None):
         """Run the helper without blocking the window while the polkit agent asks for the password. The
         controls show the requested value (wake or nubs) until it finishes, then sysfs and the file again."""
         if self.busy:
@@ -426,6 +463,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.saved = saved
         self.wake = wake or self.wake
         self.nubs = nubs or self.nubs
+        self.volume = volume or self.volume
         self.rebuild()
         proc.communicate_utf8_async(None, None, self._helper_done)
 
@@ -439,6 +477,7 @@ class PyraSettingsWindow(Gtk.Window):
         ok, message = st.helper_message(code, err, self.saved)
         self.read_wake()
         self.read_nubs()
+        self.read_volume()
         self.rebuild()
         ms = (SAVED_WAKE_MS if self.saved == st.SAVED_WAKE else SAVED_MS) if ok else ERROR_MS
         self.status(message, ms, error=not ok)
@@ -449,7 +488,8 @@ class PyraSettingsWindow(Gtk.Window):
         focused = self._focused_row()
         focused_key = focused.key if focused else None
         self.rows = {}
-        for i, build in enumerate((self._quick_rows, self._wake_rows, self._battery_rows, self._nub_rows)):
+        builders = (self._quick_rows, self._wake_rows, self._battery_rows, self._nub_rows, self._volume_rows)
+        for i, build in enumerate(builders):
             box = self.page_boxes[i]
             for child in box.get_children():
                 box.remove(child)
@@ -593,6 +633,108 @@ class PyraSettingsWindow(Gtk.Window):
         row.box.set_sensitive(sensitive)
         return row
 
+    def _volume_rows(self):
+        self.reading_row = None
+        if self.volumed != st.VOLUMED_OK:
+            return [NoteRow("volume-note", st.VOLUMED_NOTES[self.volumed])]
+        v = self.volume
+        # File unreadable: the rows stay, greyed out, with no option selected; the status line says why.
+        sensitive = v is not None and not self.busy and self.cal is None
+        rows = []
+        for key, title, reset_sub in (("range", "Speakers", "Quiet to Max"),
+                                      ("hsrange", "Headphones", "Lowest to Max")):
+            rows.append(HeaderRow("h-" + key, title))
+            for end, label, options in st.VOLUME_ROWS[key]:
+                current = st.current_end(v, key, end, options) if v else None
+                rows.append(ChoiceRow("%s-%s" % (key, end), label, "Custom" if v and current is None else "",
+                                      options, current,
+                                      lambda step, key=key, end=end: self.set_volume(
+                                          st.end_changes(self.volume, key, end, step)),
+                                      self._focus_row, locked=True, sensitive=sensitive))
+            rows.append(self._volume_reset_row(key, title[:-1] + " defaults", reset_sub, sensitive))
+        rows.append(HeaderRow("h-cal", "Calibration"))
+        self.reading_row = InfoRow("wheel-reading", "Wheel reading", self._reading_text())
+        rows.append(self.reading_row)
+        cal = ButtonRow("calibrate", "Calibrate",
+                        self.cal.prompt() if self.cal else "Turn the wheel to each mark",
+                        "Record" if self.cal else "Start", self._calibrate, locked=True)
+        cal_ok = v is not None and not self.busy and self.wheel_raw is not None
+        cal.box.set_sensitive(cal_ok)
+        rows.append(cal)
+        rows.append(self._volume_reset_row("cal", "Calibration defaults",
+                                           st.format_cal(st.VOLUMED_DEFAULTS["cal"]), sensitive))
+        return rows
+
+    def _volume_reset_row(self, key, label, subtitle, sensitive):
+        def reset():
+            if sensitive:
+                self.set_volume({key: None})
+        row = ButtonRow("reset-" + key, label, subtitle, "Reset", reset, locked=True)
+        row.box.set_sensitive(sensitive)
+        return row
+
+    def _reading_text(self):
+        return "Can't read" if self.wheel_raw is None else str(self.wheel_raw)
+
+    def _poll_wheel(self):
+        """Keep the wheel reading live while the page is shown."""
+        if self.page != VOLUME_PAGE or self.volumed != st.VOLUMED_OK:
+            return True
+        old = self.wheel_raw
+        try:
+            self.wheel_raw = st.read_wheel_raw()
+        except (OSError, ValueError):
+            self.wheel_raw = None
+        if (old is None) != (self.wheel_raw is None):
+            if self.wheel_raw is None and self.cal:
+                self._cancel_calibration("Can't read the wheel. Calibration not saved.", error=True)
+            self.rebuild()
+        elif self.reading_row:
+            self.reading_row.value.set_text(self._reading_text())
+        return True
+
+    def _calibrate(self):
+        """Start, or record the current mark: the mean of CAL_SAMPLES readings."""
+        if self.busy or self.volume is None or self.wheel_raw is None or self.cal_samples is not None:
+            return
+        if self.cal is None:
+            self.cal = st.Calibration()
+            self.rebuild()
+            return
+        self.cal_samples = []
+        GLib.timeout_add(st.CAL_SAMPLE_MS, self._sample)
+
+    def _sample(self):
+        if self.cal is None or self.cal_samples is None:
+            self.cal_samples = None
+            return False
+        try:
+            self.cal_samples.append(st.read_wheel_raw())
+        except (OSError, ValueError):
+            self._cancel_calibration("Can't read the wheel. Calibration not saved.", error=True)
+            return False
+        if len(self.cal_samples) < st.CAL_SAMPLES:
+            return True
+        self.cal.record(self.cal_samples)
+        self.cal_samples = None
+        if not self.cal.done:
+            self.rebuild()
+            return False
+        cal, self.cal = self.cal, None
+        problem = cal.problem()
+        if problem:
+            self.rebuild()
+            self.status("Calibration not saved: %s. Nothing changed." % problem, ERROR_MS, error=True)
+        else:
+            self.set_volume({"cal": tuple(cal.points)})
+        return False
+
+    def _cancel_calibration(self, message="Calibration cancelled. Nothing changed.", error=False):
+        self.cal = None
+        self.cal_samples = None
+        self.rebuild()
+        self.status(message, ERROR_MS if error else SAVED_MS, error=error)
+
     # Focus and navigation
 
     def _page_rows(self):
@@ -605,6 +747,12 @@ class PyraSettingsWindow(Gtk.Window):
         return None
 
     def _show_focus(self):
+        if self.cal is not None:
+            focused = self._focused_row()
+            if focused is None or focused.key != "calibrate":
+                # Moving off the Calibrate row cancels the calibration (docs/ui.md "Volume wheel").
+                self._cancel_calibration()
+                return
         self.stack.set_visible_child_name(PAGES[self.page][0])
         for i, box in enumerate(self.sidebar_rows):
             ctx = box.get_style_context()
@@ -641,6 +789,8 @@ class PyraSettingsWindow(Gtk.Window):
             self.rebuild()
             if self.status_timer is None:
                 self._clear_status()
+        if self.page == VOLUME_PAGE and not self.busy and self.read_volume():
+            self.rebuild()
         self.in_page = in_page and bool(self._page_rows())
         self.row_index = 0
         self.scrolled[self.page].get_vadjustment().set_value(0)
@@ -687,6 +837,9 @@ class PyraSettingsWindow(Gtk.Window):
             self.row_index = max(0, min(len(rows) - 1, self.row_index + (1 if key == K.KEY_Down else -1)))
             self._show_focus()
         elif key in KEYS_B:
+            if self.cal is not None:
+                self._cancel_calibration()
+                return True
             self.in_page = False
             self._show_focus()
         elif row is None:
@@ -728,7 +881,7 @@ class PyraSettingsWindow(Gtk.Window):
                 hints.append((("A",), "Toggle"))
             elif row is not None and row.kind in ("button", "warning"):
                 hints.append((("A",), row.action))
-            hints += [(("B",), "Back"), (("Y", "X"), "Page")]
+            hints += [(("B",), "Cancel" if self.cal is not None else "Back"), (("Y", "X"), "Page")]
         else:
             hints = [(("▲", "▼"), "Choose"), (("A",), "Open"), (("Y", "X"), "Prev / next page")]
         for child in self.hints.get_children():
@@ -754,7 +907,7 @@ class PyraSettingsWindow(Gtk.Window):
     def _clear_status(self):
         """Back to the idle line: empty, or the sysfs error, which stays while it lasts."""
         self.status_timer = None
-        errors = [e for e in (self.wake_error, self.nub_error) if e]
+        errors = [e for e in (self.wake_error, self.nub_error, self.volume_error) if e]
         if errors:
             self.status_label.set_text("; ".join(errors))
             self.status_icon.set_from_icon_name("dialog-warning-symbolic", Gtk.IconSize.MENU)
