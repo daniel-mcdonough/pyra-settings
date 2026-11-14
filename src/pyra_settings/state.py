@@ -9,6 +9,7 @@ point it at fake files on the PC; the helper never reads either variable.
 import os
 import re
 import shlex
+import subprocess
 from collections import namedtuple
 
 SYSFS_ROOT = os.environ.get("PYRA_SETTINGS_SYSFS", "/sys/devices/platform")
@@ -368,6 +369,53 @@ def nubs_argv(changes):
     for key, value in changes.items():
         args.append("%s=%s" % (key, "default" if value is None else (value or "none")))
     return helper_command() + ["set-nubs"] + args
+
+
+# Does the running pyra_volumed read /etc/pyra_volumed.conf (NEXT 4.9, docs/volume-wheel.md "Which daemon reads
+# the file")? Only if the unit runs the packaged binary directly and that binary has the file's path in it.
+VOLUMED_SHOW = ["systemctl", "show", "--value", "-p", "ExecStart", "pyra_volumed.service"]
+VOLUMED_BINARY = "/usr/bin/pyra_volumed"
+VOLUMED_CONF_MARK = b"/etc/pyra_volumed.conf"
+VOLUMED_OK, VOLUMED_MISSING, VOLUMED_OVERRIDDEN, VOLUMED_NO_CONF = "ok", "missing", "overridden", "no-conf"
+VOLUMED_NOTES = {
+    VOLUMED_MISSING: "The volume wheel daemon (pyra_volumed) isn't installed.",
+    VOLUMED_OVERRIDDEN: "pyra_volumed is started from somewhere else (an override such as dragonbox-pyra fix 12), "
+                        "and that build doesn't read these settings.",
+    VOLUMED_NO_CONF: "This pyra_volumed doesn't read these settings. They need pyra-hacks 0.38+pyra2 or later.",
+}
+_EXEC_PATH_RE = re.compile(r"\{ path=(\S+) ;")
+
+
+def volumed_exec_paths(text):
+    """The program paths in `systemctl show --value -p ExecStart` output, one per ExecStart line."""
+    return _EXEC_PATH_RE.findall(text)
+
+
+def binary_reads_conf(path):
+    """True if the file contains VOLUMED_CONF_MARK; False if it doesn't or can't be read."""
+    try:
+        with open(path, "rb") as f:
+            return VOLUMED_CONF_MARK in f.read()
+    except OSError:
+        return False
+
+
+def volumed_check(exec_start, binary=None):
+    """VOLUMED_OK, or why the page shows a note instead: exec_start is the systemctl output (None if it failed)."""
+    paths = volumed_exec_paths(exec_start or "")
+    if not paths:
+        return VOLUMED_MISSING
+    if paths != [VOLUMED_BINARY]:
+        return VOLUMED_OVERRIDDEN
+    return VOLUMED_OK if binary_reads_conf(binary or VOLUMED_BINARY) else VOLUMED_NO_CONF
+
+
+def read_volumed_check(binary=None):
+    try:
+        out = subprocess.run(VOLUMED_SHOW, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return VOLUMED_MISSING
+    return volumed_check(out.stdout if out.returncode == 0 else None, binary)
 
 
 def helper_command():

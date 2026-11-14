@@ -17,8 +17,27 @@ Two `pyra_volumed` builds are in circulation, and only one reads the file:
 
 The unit is `pyra_volumed.service` in all three cases. With the fix 12 drop-in in place, `set-volume` saves the
 file and restarts the daemon, but the daemon ignores the file. dragonbox-pyra `docs/fixes.md` says to undo fix
-12 (`device/pyra-volumed/install.sh --undo`) once the fork package is installed. The GUI needs a way to tell
-these apart before it offers the page (NEXT 4.9).
+12 (`device/pyra-volumed/install.sh --undo`) once the fork package is installed.
+
+### The check (state.py volumed_check, agreed 2026-11-14)
+
+The page shows its controls only if both hold. All of it is readable as the user.
+
+1. `systemctl show --value -p ExecStart pyra_volumed.service` has exactly one entry, with
+   `path=/usr/bin/pyra_volumed`. That rules out fix 12's drop-in (`path=/usr/local/sbin/pyra-volumed-run`) and
+   any other override. An unknown unit prints an empty line and exits 0.
+2. `/usr/bin/pyra_volumed` contains the bytes `/etc/pyra_volumed.conf`. The fork has it as a string literal
+   (`#define CONFIG` in `pyra_volumed.c`). Stock 0.38 has no such string. This tests what the binary does, not
+   its version, so an upstream release above 0.38 without the feature still fails the check.
+
+The rejected candidates: the drop-in's absence alone passes stock 0.38. The `dpkg-query` version alone passes the
+fork even when fix 12 overrides it, and a version comparison trusts the version scheme.
+
+When the check fails, the page stays and its controls are replaced by one line of explanation
+(`VOLUMED_NOTES`). It doesn't hide. Results: `VOLUMED_MISSING` (no unit, or systemctl failed),
+`VOLUMED_OVERRIDDEN` (ExecStart is something else), `VOLUMED_NO_CONF` (the binary lacks the string, or can't be
+read). The GUI runs the check when it builds the page. A restart of the daemon doesn't change the result, so it
+isn't rerun after a save. Tests: `tests/test_state.py` `VolumedCheckTest`.
 
 ## File syntax (read_config)
 
