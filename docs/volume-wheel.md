@@ -191,5 +191,14 @@ pyra-settings 0.9 (no Depends yet in that build) on fork 0.38+pyra3, fix 12 undo
   reading follows the wheel live.
 - The Quietest/Loudest presets work but the owner found them unusable by ear; replaced by a guided range
   calibration with music (NEXT 4.15, `ui.md` "Replacing the preset rows").
+- Superseded: the presets were replaced by ranges set by ear (NEXT 4.15, below).
 - amixer's simple controls are on card `L15` and named `Handsfree` and `Headset` (`amixer -c L15 sget Handsfree`);
   without `-c L15` amixer looks at the HDMI card and finds neither.
+
+## Ranges by ear on the Pyra (NEXT 4.15, 2026-11-14)
+
+pyra-settings 0.10 at the desktop, through pkexec. The owner set the speaker range with headphones out and the
+headphone range with them in: the loop played on the right output, the level followed the D-pad and the − / +
+buttons, and the saves landed (`range 5 19`, `hsrange 0 15`). Afterwards no paplay was left and the sink was back
+on its port at its old volume. The first 0.10 build failed at the start with "Cannot find the given element": the
+jack lookup lacked `iface=CARD` (fixed above).
