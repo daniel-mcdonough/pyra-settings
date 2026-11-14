@@ -37,7 +37,9 @@
 - `scripts/build-deb.sh` builds in a `debian:trixie` container (the PC isn't Debian), runs
   `desktop-file-validate`, prints `dpkg -c` and lintian, and leaves the `.deb` in `dist/`. The local
   `debian:trixie` docker image is `linux/arm/v7`, so it runs under qemu (slow, but it is the target's arch).
-- Install on the Pyra: copy the `.deb` over, `sudo apt-get install -y ./pyra-settings_<v>_all.deb`. Check with
+- Install on the Pyra: `scripts/install-on-pyra.sh <user@host>` (or `PYRA_HOST`) copies the newest `dist/` `.deb`
+  over and runs `sudo apt-get install -y --reinstall` on it (sudo asks in the terminal). By hand: copy it over,
+  `sudo apt-get install -y ./pyra-settings_<v>_all.deb`. Check with
   `systemctl status pyra-settings-apply` (with no config: "start condition unmet") and
   `pkaction --action-id org.pyra.settings.wake --verbose`.
 - A pkexec check that changes nothing: `pkexec /usr/libexec/pyra-settings/pyra-settings-helper set-wake power on`
