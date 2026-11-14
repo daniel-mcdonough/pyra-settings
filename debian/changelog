@@ -1,3 +1,13 @@
+pyra-settings (0.9) trixie; urgency=medium
+
+  * GUI: Volume wheel page (speaker and headphone presets, guided
+    calibration, per-section resets), saving through set-volume
+    (NEXT 4.11).
+  * Depends on pyra-hacks (>= 0.38+pyra3): the fork whose pyra_volumed
+    reads /etc/pyra_volumed.conf and has the off band (NEXT 4.13).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sat, 14 Nov 2026 23:00:00 +0000
+
 pyra-settings (0.8) trixie; urgency=medium
 
   * Helper: set-volume edits cal, range and hsrange in /etc/pyra_volumed.conf

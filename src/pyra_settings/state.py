@@ -384,7 +384,7 @@ VOLUMED_NOTES = {
     VOLUMED_MISSING: "The volume wheel daemon (pyra_volumed) isn't installed.",
     VOLUMED_OVERRIDDEN: "pyra_volumed is started from somewhere else (an override such as dragonbox-pyra fix 12), "
                         "and that build doesn't read these settings.",
-    VOLUMED_NO_CONF: "This pyra_volumed doesn't read these settings. They need pyra-hacks 0.38+pyra2 or later.",
+    VOLUMED_NO_CONF: "This pyra_volumed doesn't read these settings. They need pyra-hacks 0.38+pyra3 or later.",
 }
 _EXEC_PATH_RE = re.compile(r"\{ path=(\S+) ;")
 

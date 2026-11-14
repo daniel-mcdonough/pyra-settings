@@ -218,6 +218,35 @@ nothing else. Otherwise:
 - A raised `lo` made the wheel flutter at the bottom with pyra-hacks 0.38+pyra2. The owner chose to fix the
   daemon rather than limit the page: fixed in 0.38+pyra3 (`volume-wheel.md`, "Off band").
 
+#### Replacing the preset rows (NEXT 4.15, draft, not agreed)
+
+On the Pyra (NEXT 4.13, 2026-11-14) the owner found the Quietest and Loudest presets don't fit how people set a
+volume: the saves land and the daemon applies them, but a list of named levels can't be judged without sound,
+and the change is only heard at one end of the wheel. Owner's direction: the ends become their own guided
+calibration, with music playing, where the user adjusts until it sounds right. Rows 1-8 go; Calibration stays.
+
+Agreed so far (owner, 2026-11-14):
+
+- The page plays a bundled short loop: a 15-20 s instrumental stretch of the owner's own upbeat electronic
+  track (made on a paid Suno plan, owner's to license), Ogg Vorbis, looped with `paplay` as the user. Licence
+  and holder in `debian/copyright` (neutral holder name).
+
+Draft flow, per output (Speakers, Headphones; headphones need the jack in):
+
+1. Button **Speaker range** (subtitle the current `lo`-`hi` in dB), action "Set". The loop starts.
+2. Step 1 of 2: "Make it as loud as you'd ever want." Left/right step the level, heard at once; A records `hi`.
+3. Step 2 of 2: "Make it as quiet as you still want to hear." Left/right, A records `lo` (kept below `hi`).
+4. One password: `set-volume range=lo hi` (or `hsrange`). B cancels at any step: nothing changed, loop stops.
+5. Reset rows stay as they are.
+
+Open, for the owner: whether the wheel is ignored during the steps (left/right only, the draft) or the user holds
+it at the end being set. Mechanism notes for the build session: PulseAudio has no volume element on these
+controls (dragonbox-pyra `device/pulse/alsa-mixer/paths/pyra-*.conf`: routes only, software volume on top), so it
+doesn't fight a preview written straight to the mixer. pyra_volumed writes only on a step change, a restart or an
+off/on change, so with the wheel untouched it leaves the preview alone; if the wheel moves the page should
+re-apply. PulseAudio's software volume multiplies the result, so the step plays at sink volume 100% and puts the
+user's volume back after. To check: whether the user can write the codec's mixer (audio group) without the helper.
+
 ## Warnings
 
 One warning, in the warning banner, at the top of Quick settings and under "Wake sources".

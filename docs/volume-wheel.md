@@ -33,6 +33,12 @@ The page shows its controls only if both hold. All of it is readable as the user
 The rejected candidates: the drop-in's absence alone passes stock 0.38. The `dpkg-query` version alone passes the
 fork even when fix 12 overrides it, and a version comparison trusts the version scheme.
 
+**pyra2 vs pyra3 (owner, NEXT 4.13):** the check passes 0.38+pyra2, which reads the file but flutters with a
+raised `lo`, and no string in the binary tells the two apart. So the package declares `Depends: pyra-hacks (>=
+0.38+pyra3)` (apt knows the version), and `VOLUMED_NO_CONF` asks for "0.38+pyra3 or later". The check stays as
+it is, for fix 12's override. Consequence: pyra-settings 0.9 and later won't install where the fork isn't
+installed or available to apt, so the image (NEXT 1.5) has to ship the fork first.
+
 When the check fails, the page stays and its controls are replaced by one line of explanation
 (`VOLUMED_NOTES`). It doesn't hide. Results: `VOLUMED_MISSING` (no unit, or systemctl failed),
 `VOLUMED_OVERRIDDEN` (ExecStart is something else), `VOLUMED_NO_CONF` (the binary lacks the string, or can't be
@@ -153,3 +159,16 @@ the smallest nudge off it didn't move the reading. That case is covered by the s
 bottom are too small to hear. Asking the owner to rest the wheel "where the sound cuts out" or "where it drops"
 doesn't work. "All the way down to the end stop" lands in the old flutter zone, and sampling the numbers is the
 test.
+
+## The page on the Pyra (NEXT 4.13, 2026-11-14)
+
+pyra-settings 0.9 (no Depends yet in that build) on fork 0.38+pyra3, fix 12 undone, through pkexec at the desktop.
+
+- Every save landed: the file showed the picks (`hsrange 6 12`) and the calibration (`cal 15 75 247 708 2064`,
+  rising; the built-in is `16 144 394 1071 2068`). Seven restarts in `journalctl -u pyra_volumed`, no "ignored".
+  The journal needs `sudo` (the user isn't in `adm`/`systemd-journal`).
+- Calibrate then B: "Calibration cancelled. Nothing changed." All three Resets leave the file empty. The wheel
+  reading follows the wheel live.
+- The Quietest/Loudest presets work but the owner found them unusable by ear; replaced by a guided range
+  calibration with music (NEXT 4.15, `ui.md` "Replacing the preset rows").
+- amixer's simple control names drop "Volume": `amixer sget 'Handsfree Playback'`, `'Headset Playback'`.
