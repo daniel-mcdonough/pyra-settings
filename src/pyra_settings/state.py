@@ -619,7 +619,8 @@ def write_mixer(key, step, run=run_audio):
 
 def read_jack(run=run_audio):
     """True if headphones are plugged in."""
-    value = parse_cget(run(amixer_argv("cget", "name=" + JACK_CONTROL)))[0]
+    # A CARD control: amixer looks up names on the MIXER interface unless told otherwise.
+    value = parse_cget(run(amixer_argv("cget", "iface=CARD,name=" + JACK_CONTROL)))[0]
     if value not in ("on", "off"):
         raise ValueError("%s reads %r" % (JACK_CONTROL, value))
     return value == "on"

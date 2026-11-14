@@ -114,8 +114,9 @@ as the user:
 - **Mixer:** card `L15` (`hw:CARD=L15`, as in the daemon's `CARD`), not the default card (the HDMI encoder is
   card 0). By full name: `amixer -c L15 cget name='Handsfree Playback Volume'`, `cset ... <step>`. The user is in
   `audio` and `/dev/snd/controlC*` are `root:audio 0660`, so no helper is needed (checked 2026-11-14).
-- **Jack:** `amixer -c L15 cget name='Headset Stereophone Jack'` reads `values=on` with headphones in (read-only
-  control). `Headset Mic Jack` is the mic.
+- **Jack:** `amixer -c L15 cget iface=CARD,name='Headset Stereophone Jack'` reads `values=on` with headphones in
+  (read-only). It is a CARD control: without `iface=CARD` amixer looks on MIXER and fails with "Cannot find the
+  given element" (found on the Pyra with 0.10; the fake stand-in now rejects the bare name too). `Headset Mic Jack` is the mic.
 - **PulseAudio:** the codec's sink is `aess` (card `alsa_card.L15`), ports `pyra-speaker` and
   `pyra-headphones`; the page finds it by those ports in `pactl -f json list sinks` (pactl 17). The image loads
   `module-switch-on-port-available`, yet the active port has been seen on `pyra-speaker` with headphones in and

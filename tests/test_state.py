@@ -547,7 +547,7 @@ class RangeByEarTest(unittest.TestCase):
         st.write_mixer("range", 20, run)
         self.assertEqual(calls, [
             ["amixer", "-c", "L15", "cget", "name=Headset Playback Volume"],
-            ["amixer", "-c", "L15", "cget", "name=Headset Stereophone Jack"],
+            ["amixer", "-c", "L15", "cget", "iface=CARD,name=Headset Stereophone Jack"],
             ["amixer", "-c", "L15", "-q", "cset", "name=Handsfree Playback Volume", "20"]])
         with self.assertRaises(ValueError):
             st.read_jack(lambda argv: "  : values=12\n")

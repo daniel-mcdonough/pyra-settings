@@ -36,7 +36,10 @@ def main(argv):
         return 0
     if cmd == "amixer":
         args = [a for a in args[2:] if a != "-q"]          # drop "-c L15"
-        name = args[1][len("name="):]
+        name = args[1].split("name=", 1)[1]
+        if args[1] == "name=Headset Stereophone Jack":
+            print("amixer: Cannot find the given element from control hw:L15", file=sys.stderr)
+            return 1
         if name == "Headset Stereophone Jack":
             print("  : values=%s" % state["jack"])
         elif args[0] == "cget":
