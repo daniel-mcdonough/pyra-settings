@@ -110,6 +110,20 @@ None agreed. Each needs its own yes before work starts.
 | BTN1, the CPU board's user button | `user-buttons/wakeup_keys`, code 169 | Find where it is (NEXT) |
 | Display rotation | MATE display panel | Probably stays in MATE |
 
+### v2: agreed (owner, 2026-11-13)
+
+With idle sleep gone, suspend and wake alone is thin. The app becomes the Pyra's hardware settings, none of which
+MATE covers. Work items: NEXT 4.x.
+
+| Setting | Mechanism today | Work needed first |
+|---|---|---|
+| Nubs: what each axis does, clicks, sensitivity, deadzones | `/etc/pyrainput.cfg`, root daemon funkeymonkey-pyrainput, `systemctl reload pyrainput` | Done: helper `set-nubs` (`nubs.md`); profiles out of scope. GUI after the layout |
+| Screen dimming: depth and delay | Depth `PYRA_DIM_PERCENT` in pyra-idle-dim's unit (hard-coded); delay `org.mate.session idle-delay` | pyra-backlight reads the depth from a config file (NEXT 4.2) |
+| Keyboard light: default level, idle dimming | `pyra::kbd_backlight` LED; systemd-backlight restores the last level | Decide the meaning of a default level; idle dim in pyra-idle-dim (NEXT 4.3) |
+| Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`), root daemon `pyra_volumed` | A headphones option in the daemon that the sound applet also reads (NEXT 4.4) |
+
+The keyboard light and screen dim rows above are superseded by this table.
+
 ## Not exposed
 
 | Setting | Why it stays out |
@@ -172,7 +186,7 @@ None agreed. Each needs its own yes before work starts.
    - `gi.require_version` pins Gdk as well as Gtk to 3.0: on a machine with GTK 4, importing Gdk first loads
      Gdk 4 and Gtk 3 then fails.
 2. **Helper**, `/usr/libexec/pyra-settings/pyra-settings-helper`, run through `pkexec`. Commands:
-   `set-wake game-buttons <codes>`, `set-wake lid on|off`, `apply`. It:
+   `set-wake game-buttons <codes>`, `set-wake lid on|off`, `set-nubs key=value...` (v2, `nubs.md`), `apply`. It:
    - accepts only known device names, mapped to hard-coded sysfs paths, never a path from the caller;
    - checks each code against that device's `keys` file and rejects anything else;
    - writes the config file and sysfs, so a change is live and persistent;
@@ -195,7 +209,9 @@ None agreed. Each needs its own yes before work starts.
    - Shebang `#!/usr/bin/python3 -I`: isolated mode, no `PYTHON*` env or user site, on top of pkexec's own env
      scrub.
 3. **polkit action**, `org.pyra.settings.wake`, in `/usr/share/polkit-1/actions/`, with
-   `org.freedesktop.policykit.exec.path` set to the helper and `allow_active` = `auth_admin_keep`.
+   `org.freedesktop.policykit.exec.path` set to the helper and `allow_active` = `auth_admin_keep`. pkexec picks
+   the action by program path, so this one action covers every helper command; its text says "the Pyra's hardware
+   settings" (0.6) and the id keeps its v1 name.
 4. **Config file**, `/etc/pyra-settings/pyra-settings.conf`, INI, one file for every later setting too:
 
        [wake]

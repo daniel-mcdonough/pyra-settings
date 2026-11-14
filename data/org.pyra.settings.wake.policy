@@ -4,8 +4,8 @@
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
   <action id="org.pyra.settings.wake">
-    <description>Change what wakes the Pyra from suspend</description>
-    <message>Authentication is required to change what wakes the Pyra from suspend</message>
+    <description>Change the Pyra's hardware settings</description>
+    <message>Authentication is required to change the Pyra's hardware settings</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>

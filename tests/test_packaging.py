@@ -23,7 +23,11 @@ def read_ini(name):
 class PackagingTest(unittest.TestCase):
     def test_policy(self):
         action = ET.parse(path("data", "org.pyra.settings.wake.policy")).getroot().find("action")
+        # The id predates the nubs; pkexec matches the action by the helper's path, so the text covers every command.
         self.assertEqual(action.get("id"), "org.pyra.settings.wake")
+        self.assertEqual(action.findtext("description"), "Change the Pyra's hardware settings")
+        self.assertEqual(action.findtext("message"),
+                         "Authentication is required to change the Pyra's hardware settings")
         defaults = action.find("defaults")
         self.assertEqual(defaults.findtext("allow_active"), "auth_admin_keep")
         self.assertEqual(defaults.findtext("allow_any"), "auth_admin")

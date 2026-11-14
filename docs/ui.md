@@ -177,11 +177,12 @@ PgUp and PgDn themselves.
 
 ## As built (NEXT 1.3): choices this file left open
 
-Made while writing the GUI, where the sections above say nothing. The status timings and the unreadable-sysfs
-case were reviewed by the owner (2026-11-12) and moved into "Status line" above; the rest are not reviewed yet
-(NEXT 1.6).
+Made while writing the GUI, where the sections above say nothing. All accepted by the owner on the Pyra
+(2026-11-13, NEXT 1.6); the status timings and the unreadable-sysfs case are in "Status line" above.
 
-- Icons: Quick settings `preferences-system-symbolic`, Suspend & wake `weather-clear-night-symbolic`, Battery
+- Icons: Quick settings `preferences-system-symbolic`, Suspend & wake `pyra-settings-suspend-symbolic` (the
+  app's own crescent moon in hicolor, 0.4: the mate theme's `weather-clear-night-symbolic` reads as a grey disc
+  at sidebar size), Battery
   `battery-good-symbolic`; lock `changes-prevent-symbolic`.
 - A choice row showing "Custom": A or Right picks the first option, Left the last.
 - Y / X with the focus in the page: the focus goes to the first row of the new page.
@@ -190,6 +191,16 @@ case were reviewed by the owner (2026-11-12) and moved into "Status line" above;
 - Greyed-out rows still take the focus; A and ◀▶ do nothing on them.
 - Hint glyphs are fixed dark badges (`#333`, white text), not theme colours, as the mockup's are.
 - The warning's focus ring is a 3 px frame around the `Gtk.InfoBar` (its children paint over a box-shadow).
+
+## Checked on the Pyra (NEXT 1.6, 2026-11-13)
+
+0.4 and 0.5 on the Pyra (kernel 5.6.19-m4-kbdled, no 0053), checked by the owner: all works.
+
+- Layout at 1280x720 in Menta (BlueMenta), BlackMATE and a flat theme.
+- Controller keys and touch as "Controller and keyboard" says.
+- The game-buttons switch through mate-polkit: password accepted ("Saved. Takes effect at the next suspend.");
+  password cancelled, the switch goes back and the status line says so.
+- Idle sleep was dropped instead of checked (0.5, `design.md` "Decisions").
 
 ## v2 sketches (not agreed)
 

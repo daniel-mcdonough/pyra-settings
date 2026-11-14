@@ -1,3 +1,12 @@
+pyra-settings (0.6) trixie; urgency=medium
+
+  * Helper: set-nubs edits /etc/pyrainput.cfg (nub modes, deadzones,
+    sensitivities) and reloads pyrainput (NEXT 4.1).
+  * polkit: the action's text names the Pyra's hardware settings, not only
+    wake, as it covers every helper command (NEXT 4.5).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Fri, 13 Nov 2026 12:00:00 +0000
+
 pyra-settings (0.5) trixie; urgency=medium
 
   * Idle sleep dropped: MATE's Power Management panel keeps it. MATE starts

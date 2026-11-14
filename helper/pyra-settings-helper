@@ -6,26 +6,33 @@ pyra-settings-apply.service at boot. Commands:
 
     set-wake game-buttons <codes>|none   codes: a kernel bitmap list, e.g. 102-109,272-273
     set-wake lid on|off
+    set-nubs <key>=<value>...            edit the nub keys of /etc/pyrainput.cfg and reload pyrainput (NEXT 4.1)
     apply                                reapply the config file to sysfs
 
 set-wake writes sysfs first and the config file only if every sysfs write succeeded, so a write the kernel
-refuses changes nothing. apply never writes the config.
+refuses changes nothing. apply never writes the config. set-nubs checks every pair before it writes anything;
+pyrainput's own file needs no boot apply, the daemon reads it at start (docs/nubs.md).
 
 Exit codes: 0 done, 1 a write or read failed, 2 the request was refused (bad arguments, unknown device, a code
 the device doesn't have, the power button). 126 and 127 stay free for pkexec's own "dismissed" and "not
 authorized".
 
-The sysfs and config locations are the module constants below. Nothing from the caller (argument, environment)
+The sysfs, config and pyrainput locations are the module constants below. Nothing from the caller (argument, environment)
 can change them; only the test suite overrides them, by importing this file.
 """
 
 import configparser
 import os
 import re
+import subprocess
 import sys
 
 SYSFS_ROOT = "/sys/devices/platform"
 CONFIG_PATH = "/etc/pyra-settings/pyra-settings.conf"
+PYRAINPUT_PATH = "/etc/pyrainput.cfg"
+# Reloads pyrainput if it runs, does nothing if it doesn't. ExecReload is SIGUSR1: the daemon resets its settings
+# and rereads the file (docs/nubs.md).
+PYRAINPUT_RELOAD = ["/usr/bin/systemctl", "try-reload-or-restart", "pyrainput.service"]
 
 # Device names the caller may use, mapped to their sysfs directory under SYSFS_ROOT.
 GAME_BUTTONS = "game-buttons"
@@ -238,6 +245,153 @@ def cmd_set_wake(args):
         save_config_value(LID, "on" if on else "off")
 
 
+# The nub keys of pyrainput.cfg the helper may set, with their checks (docs/nubs.md). Everything else in the file
+# (scripts.*, which the daemon runs as root, profile.*, PYRA_KEY_*, altmode.*, *.export) is never written.
+NUB_AXIS_MODES = ("mouse_x", "mouse_y", "mouse_btn", "scroll_x", "scroll_y")
+NUB_CLICK_MODES = ("mouse_left", "mouse_middle", "mouse_right", "nub_click_left", "nub_click_right")
+NUB_MODE_KEYS = {
+    "nubs.left.x": NUB_AXIS_MODES,
+    "nubs.left.y": NUB_AXIS_MODES,
+    "nubs.right.x": NUB_AXIS_MODES,
+    "nubs.right.y": NUB_AXIS_MODES,
+    "nubs.left.click": NUB_CLICK_MODES,
+    "nubs.right.click": NUB_CLICK_MODES,
+}
+# Inclusive ranges. The nubs report -256..256, so a deadzone of 256 or more would switch the axis off.
+NUB_INT_KEYS = {
+    "nubs.deadzone": (0, 255),
+    "mouse.deadzone": (0, 255),
+    "mouse.wheel.deadzone": (0, 255),
+    "mouse.click.deadzone": (0, 255),
+    "mouse.sensitivity": (1, 1000),
+    "mouse.wheel.sensitivity": (1, 1000),
+}
+NUB_NONE = "none"        # a mode key with no modes: the axis or click does nothing
+NUB_DEFAULT = "default"  # remove the key, so the daemon's built-in value applies
+
+# libpyrainput's line patterns (settings.cpp, loadConfig): a setting starts in column 0, a comment is a "#" in
+# column 0, keys are case-insensitive and the last line for a key wins.
+_PYRAINPUT_LINE_RE = re.compile(r"^([\w.]+)\s*=\s*(.*)$", re.ASCII)
+_PROFILE_CURRENT = "profile.current"
+
+
+def check_nub_value(key, value):
+    """The value as it goes into the file, None for default. Raises ValueError."""
+    value = value.strip()
+    if value == NUB_DEFAULT:
+        return None
+    if key in NUB_MODE_KEYS:
+        if value == NUB_NONE:
+            return ""
+        modes = value.split()
+        allowed = NUB_MODE_KEYS[key]
+        if not modes:
+            raise ValueError("%s: no mode (use \"%s\")" % (key, NUB_NONE))
+        for m in modes:
+            if m not in allowed:
+                raise ValueError("%s takes %s, not %r" % (key, "|".join(allowed), m))
+        if len(set(modes)) != len(modes):
+            raise ValueError("%s: a mode given twice" % key)
+        return " ".join(modes)
+    lo, hi = NUB_INT_KEYS[key]
+    # The daemon reads these with std::stoi, which throws on anything that isn't a number and ends the daemon.
+    if not re.fullmatch(r"[0-9]{1,4}", value, re.ASCII) or not lo <= int(value) <= hi:
+        raise ValueError("%s must be a whole number %d-%d, not %r" % (key, lo, hi, value))
+    return str(int(value))
+
+
+def parse_nub_args(args):
+    """key=value arguments as an ordered {key: file value or None}. Raises Refused."""
+    if not args:
+        raise Refused("usage: set-nubs <key>=<value>...")
+    changes = {}
+    for arg in args:
+        key, sep, value = arg.partition("=")
+        key = key.strip()
+        if not sep:
+            raise Refused("not key=value: %r" % arg)
+        if key not in NUB_MODE_KEYS and key not in NUB_INT_KEYS:
+            raise Refused("not a nub setting: %r" % key)
+        if key in changes:
+            raise Refused("%s given twice" % key)
+        try:
+            changes[key] = check_nub_value(key, value)
+        except ValueError as e:
+            raise Refused(str(e))
+    return changes
+
+
+def line_key(line):
+    """The setting a pyrainput.cfg line sets, lowercased as the daemon does, or None."""
+    m = _PYRAINPUT_LINE_RE.match(line.rstrip("\r\n"))
+    return m.group(1).lower() if m else None
+
+
+def edit_pyrainput(lines, changes):
+    """Apply changes to the file's lines (each with its newline) and return the new lines.
+
+    Every line that sets a changed key gets the new value in place, or goes for default; nothing else moves. A key
+    not in the file goes above the first profile.current line: the daemon loads the profile where that line
+    stands, so a key below it would override the profile pyrainputctl overload sets for a game."""
+    out = []
+    for line in lines:
+        key = line_key(line)
+        if key in changes:
+            if changes[key] is not None:
+                out.append(format_nub_line(key, changes[key]))
+            continue
+        out.append(line)
+    present = {line_key(line) for line in lines}
+    new = [format_nub_line(k, v) for k, v in changes.items() if v is not None and k not in present]
+    if not new:
+        return out
+    at = next((i for i, line in enumerate(out) if line_key(line) == _PROFILE_CURRENT), len(out))
+    if at > 0 and not out[at - 1].endswith("\n"):
+        out[at - 1] += "\n"
+    return out[:at] + new + out[at:]
+
+
+def format_nub_line(key, value):
+    return ("%s = %s" % (key, value)).rstrip() + "\n"
+
+
+def write_file_atomic(path, text, mode):
+    tmp = path + ".new"
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+        with os.fdopen(fd, "w") as f:
+            os.fchmod(f.fileno(), mode)
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except OSError as e:
+        raise Failed("cannot write %s: %s" % (path, e.strerror))
+
+
+def cmd_set_nubs(args):
+    changes = parse_nub_args(args)
+    try:
+        with open(PYRAINPUT_PATH, newline="") as f:
+            lines = f.readlines()
+        mode = os.stat(PYRAINPUT_PATH).st_mode & 0o7777
+    except FileNotFoundError:
+        lines, mode = [], 0o644
+    except OSError as e:
+        raise Failed("cannot read %s: %s" % (PYRAINPUT_PATH, e.strerror))
+    new = edit_pyrainput(lines, changes)
+    if new != lines:
+        write_file_atomic(PYRAINPUT_PATH, "".join(new), mode)
+    try:
+        result = subprocess.run(PYRAINPUT_RELOAD, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.PIPE, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise Failed("saved %s, but pyrainput was not reloaded: %s" % (PYRAINPUT_PATH, e))
+    if result.returncode != 0:
+        raise Failed("saved %s, but pyrainput was not reloaded: %s"
+                     % (PYRAINPUT_PATH, result.stderr.decode(errors="replace").strip()))
+
+
 def cmd_apply(args):
     """Apply every setting in the config. A missing key leaves the kernel default; one bad setting doesn't stop
     the others."""
@@ -265,13 +419,14 @@ def cmd_apply(args):
 
 COMMANDS = {
     "set-wake": cmd_set_wake,
+    "set-nubs": cmd_set_nubs,
     "apply": cmd_apply,
 }
 
 
 def main(argv):
     if not argv or argv[0] not in COMMANDS:
-        log("refused: usage: pyra-settings-helper set-wake <device> <value> | apply")
+        log("refused: usage: pyra-settings-helper set-wake <device> <value> | set-nubs <key>=<value>... | apply")
         return EXIT_REFUSED
     try:
         return COMMANDS[argv[0]](argv[1:]) or EXIT_OK
