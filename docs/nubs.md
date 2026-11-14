@@ -76,13 +76,29 @@ Quirks in 0.1.19, harmless for a settings app but visible when tuning:
 
 `profile.current = N` loads the file at `profile.N` at the point the line is read. Lines below it override the
 profile; lines above it are overridden by it. `pyrainputctl overload <file>` (passwordless for the sudo group,
-via `/etc/sudoers.d/pyrainput`, for dbp game packages, whose README lists `overload` and `no-overload` as their "command lines"; which games call them is unchecked) deletes and appends `profile.9 = <file>` and
+via `/etc/sudoers.d/pyrainput`, for dbp game packages, whose README lists `overload` and `no-overload` as their "command lines") deletes and appends `profile.9 = <file>` and
 `profile.current = 9` at the end of the file. `no-overload` deletes both; a game that crashes before it runs
 leaves them, and its profile then wins until something removes them. So a game's nub config wins over the
 user's while it is loaded, and the helper keeps it that way: a key not yet in the file goes **above** the first
 `profile.current` line. `pyrainputctl`'s `sed -ie` leaves a stray `/etc/pyrainput.cfge` backup each time.
 
 Command mode (Fn+Pyra, then a digit) also loads a profile at run time.
+
+**Callers (NEXT 4.8, 2026-11-14): none known.** No package in the Pyra package archive (mirror of
+packages.pyra-handheld.com, 2026-10-18: every `.deb`, source tarball, apt index and the small archives under
+`images/`) calls `pyrainputctl` at all, `overload` or `enable`/`disable`. The only package with the string is
+`funkeymonkey-pyrainput`, which ships it; `overload`/`no-overload` arrived in 0.1.14 (2021), the script is
+unchanged from 0.1.14 to 0.1.19 (bookworm, trixie), and 0.1.6-0.1.13 have only `enable`/`disable`. The archive
+holds no game packages (dbp games were distributed elsewhere) and no profile files. The README with the "command
+lines for dbp packages" is in the source only, not the `.deb`. So a `profile.current` line on a Pyra comes from a
+manual call or a game from outside the archive, and the Nubs page's row says "A nub profile is loaded", not "a
+game's" (`ui.md`, "Nubs").
+
+The overload is persistent: it lives in `/etc/pyrainput.cfg`, not in the daemon, so whenever `no-overload` is
+skipped (the game crashes and its wrapper stops, the wrapper is killed, or it `exec`s the game) the profile
+survives daemon restarts and reboots until `no-overload` runs or the file is edited. `enable`/`disable` leave
+`*.export` lines the same way. From the daemon source (not tested): `resetSettings` doesn't reset the key map, so
+`PYRA_KEY_*` remaps from a profile stay in the running daemon after `no-overload` until a restart.
 
 ## Reload (systemctl reload pyrainput)
 

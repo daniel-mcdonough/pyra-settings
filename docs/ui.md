@@ -126,10 +126,10 @@ Not in the mockup (it has only the "Nub clicks" wake switch). Drafted for NEXT 4
 agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every row but the info row goes through
 `set-nubs`, so each has the lock.
 
-1. Info, only when the file has a `profile.current` line: **A game's nub settings are loaded**, value the
-   profile's file name (`profile.N`'s value, base name), subtitle "They override this page until the game runs
-   pyrainputctl no-overload." `pyrainputctl overload` is meant for dbp game packages; a game that skips `no-overload` leaves the
-   lines in place (`nubs.md`). A profile loaded from command mode (Fn+Pyra, digit) isn't in the file and isn't
+1. Info, only when the file has a `profile.current` line: **A nub profile is loaded**, value the profile's
+   file name (`profile.N`'s value, base name), subtitle "It overrides this page until sudo pyrainputctl
+   no-overload removes it." Neutral wording (owner, 2026-11-14, NEXT 4.8): no package in the Pyra archive calls
+   `pyrainputctl overload`, so the lines come from a manual call or a game from elsewhere (`nubs.md`). A profile loaded from command mode (Fn+Pyra, digit) isn't in the file and isn't
    shown.
 2. Header **Left nub**.
 3. Choice **Moves**: Pointer / Scroll / Scroll & click / Gamepad only.

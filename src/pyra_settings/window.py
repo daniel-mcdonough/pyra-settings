@@ -558,8 +558,8 @@ class PyraSettingsWindow(Gtk.Window):
             return "Custom. " + base if base else "Custom"
         rows = []
         if n and n.profile:
-            rows.append(InfoRow("nub-profile", "A game's nub settings are loaded", n.profile,
-                                "They override this page until the game runs pyrainputctl no-overload."))
+            rows.append(InfoRow("nub-profile", "A nub profile is loaded", n.profile,
+                                "It overrides this page until sudo pyrainputctl no-overload removes it."))
         resets = {"left": "Pointer, left click", "right": "Scroll & click, right click"}
         for side in st.NUB_SIDES:
             title = side.capitalize() + " nub"
