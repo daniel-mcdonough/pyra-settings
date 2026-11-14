@@ -227,9 +227,11 @@ calibration, with music playing, where the user adjusts until it sounds right. R
 
 Agreed so far (owner, 2026-11-14):
 
-- The page plays a bundled short loop: a 15-20 s instrumental stretch of the owner's own upbeat electronic
-  track (made on a paid Suno plan, owner's to license), Ogg Vorbis, looped with `paplay` as the user. Licence
-  and holder in `debian/copyright` (neutral holder name).
+- The page plays a bundled loop, looped with `paplay` as the user: `data/sounds/volume-test.ogg`, installed in
+  `/usr/share/pyra-settings/sounds/`. An upbeat electronic excerpt the owner made on a paid Suno plan and trimmed
+  (31.6 s, 48 kHz stereo, Vorbis q4, 500 KB). Loudness range 1.2 LU (about -13 LUFS, true peak -1.8 dBFS), no
+  fade at either end, so it loops without a dip. Metadata stripped (the source carried a username and the Suno
+  song id). CC0-1.0 in `debian/copyright`.
 
 Draft flow, per output (Speakers, Headphones; headphones need the jack in):
 

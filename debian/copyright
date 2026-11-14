@@ -4,6 +4,15 @@ Upstream-Name: pyra-settings
 Files: *
 Copyright: 2026 the pyra-settings authors
 License: GPL-2+
+
+Files: data/sounds/volume-test.ogg
+Copyright: 2026 the pyra-settings authors
+Comment: The volume wheel page's test loop: an excerpt of a track made on a
+ paid Suno plan (which gives the creator ownership and commercial use),
+ dedicated to the public domain.
+License: CC0-1.0
+
+License: GPL-2+
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation; either version 2 of the License, or
@@ -16,3 +25,11 @@ License: GPL-2+
  .
  On Debian systems, the complete text of the GNU General Public
  License version 2 can be found in "/usr/share/common-licenses/GPL-2".
+
+License: CC0-1.0
+ To the extent possible under law, the authors have waived all copyright and
+ related or neighboring rights to this file. You can copy, modify, distribute
+ and perform it, even for commercial purposes, all without asking permission.
+ .
+ The complete text of the Creative Commons CC0 1.0 Universal Public Domain
+ Dedication is at <https://creativecommons.org/publicdomain/zero/1.0/legalcode>.
