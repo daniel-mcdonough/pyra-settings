@@ -30,7 +30,12 @@
   fake helper skips the pyra_volumed restart), `PYRA_SETTINGS_IIO=<dir>` with `<dir>/iio:device0/name` =
   `palmas-gpadc` and an `in_voltage2_raw` to edit during a calibration. The check fails on a PC (no
   pyra_volumed unit), so the page shows its note; to see the controls, start the window from a short script that
-  first patches it: `mock.patch.object(state, "read_volumed_check", lambda *a: "ok").start()`.
+  first patches it: `mock.patch.object(state, "read_volumed_check", lambda *a: "ok").start()`. For the range
+  rows add `PYRA_SETTINGS_AUDIO="python3 ../tests/fakeaudio.py <state.json>"`: a fake amixer, pactl and paplay
+  whose state (jack, mixer steps, sink port, volume, mute) and call log are in the JSON file; edit `"jack"` to
+  plug or unplug, or a mixer step to stand in for pyra_volumed moving it.
+- Killing the GUI from a script: `pkill -f <pattern>` also matches the shell running the command when the
+  pattern is in its text, and kills it (exit 144). Kill by PID, or use a pattern the command line doesn't contain.
 - Headless: `Xvfb :91 -screen 0 1280x720x24`, `DISPLAY=:91 GDK_BACKEND=x11` (on a Wayland desktop GTK
   otherwise opens the window there, not on the Xvfb), `xdotool key Home Down Left` for the controller
   keys (A = Home, B = End, Y/X = Page_Up/Page_Down), `import -window root -resize 50%` for screenshots.

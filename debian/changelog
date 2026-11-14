@@ -1,3 +1,11 @@
+pyra-settings (0.10) trixie; urgency=medium
+
+  * GUI: the volume wheel page sets each range by ear, with a bundled loop
+    playing, in place of the Quietest/Loudest presets (NEXT 4.15).
+  * Depends on alsa-utils and pulseaudio-utils (amixer, pactl, paplay).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 15 Nov 2026 01:00:00 +0000
+
 pyra-settings (0.9) trixie; urgency=medium
 
   * GUI: Volume wheel page (speaker and headphone presets, guided

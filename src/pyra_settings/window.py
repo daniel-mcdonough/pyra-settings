@@ -1,4 +1,4 @@
-"""The Pyra Settings window (NEXT 1.3, Nubs 4.6, Volume wheel 4.11): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
+"""The Pyra Settings window (NEXT 1.3, Nubs 4.6, Volume wheel 4.11 and 4.15): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
 
 The app keeps its own focus (sidebar or a page row) instead of GTK's, because the Pyra's A, B, Y and X buttons
 are Home, End, PgUp and PgDn, which GTK widgets would take. No widget can take keyboard focus.
@@ -61,6 +61,9 @@ WHEEL_POLL_MS = 250
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
 SOURCE_ICONS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "icons")
+SOURCE_SOUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "sounds",
+                            os.path.basename(st.SOUND_PATH))
+JACK_POLL_TICKS = 4      # the jack is read every 4th wheel poll, once a second
 SCROLL_MARGIN = 60
 SAVED_MS = 3000
 SAVED_WAKE_MS = 4000
@@ -258,6 +261,26 @@ class ButtonRow(Row):
         self.on_activate()
 
 
+class RangeRow(ButtonRow):
+    """A range row: a button, and while its range is being set (docs/ui.md "Setting a range by ear") left/right
+    step the level instead of leaving the page."""
+
+    def __init__(self, key, label, subtitle, action, on_activate, on_step, adjusting):
+        super().__init__(key, label, subtitle, action, on_activate, locked=True)
+        self.on_step = on_step
+        self.adjusting = adjusting
+
+    def left(self):
+        if self.adjusting:
+            self.on_step(-1)
+        return self.adjusting
+
+    def right(self):
+        if self.adjusting:
+            self.on_step(1)
+        return self.adjusting
+
+
 class WarningRow(Row):
     focusable = True
     kind = "warning"
@@ -318,6 +341,12 @@ class PyraSettingsWindow(Gtk.Window):
         self.cal_samples = None     # readings for the current mark while it is being recorded
         self.wheel_raw = None
         self.reading_row = None
+        self.rng = None             # st.RangeSetting while a range is being set by ear
+        self.rng_sink = None        # the PulseAudio sink as it was before, to put back
+        self.rng_mixer = None       # the mixer step from before, to put back
+        self.loop_proc = None       # paplay, while the loop plays
+        self.jack = None            # headphones plugged in; None if it can't be read
+        self.poll_ticks = 0
         self.busy = False
         self.saved = st.SAVED_WAKE
         self.page = 0
@@ -363,7 +392,7 @@ class PyraSettingsWindow(Gtk.Window):
         content.pack_start(self.stack, True, True, 0)
 
         self.connect("key-press-event", self._key)
-        self.connect("destroy", Gtk.main_quit)
+        self.connect("destroy", self._destroyed)
         if self.settings:
             self.settings.connect("changed", lambda *_: self.rebuild())
         self.read_wake()
@@ -371,6 +400,7 @@ class PyraSettingsWindow(Gtk.Window):
         # Once: a restart of the daemon doesn't change the result (docs/volume-wheel.md "The check").
         self.volumed = st.read_volumed_check()
         self.read_volume()
+        self.read_jack()
         self.rebuild()
         self._clear_status()
         GLib.timeout_add(WHEEL_POLL_MS, self._poll_wheel)
@@ -412,6 +442,20 @@ class PyraSettingsWindow(Gtk.Window):
         except OSError as e:
             self.volume, self.volume_error = None, st.volumed_error_text(e)
         return old != (self.volume.values if self.volume else None)
+
+    def read_jack(self):
+        """Read the headphone jack; True if it changed."""
+        old = self.jack
+        try:
+            self.jack = st.read_jack()
+        except (OSError, ValueError):
+            self.jack = None
+        return old != self.jack
+
+    def _destroyed(self, _window):
+        if self.rng is not None:
+            self._end_range()
+        Gtk.main_quit()
 
     def _get(self, key):
         return self.settings.get_string(key)
@@ -639,31 +683,38 @@ class PyraSettingsWindow(Gtk.Window):
             return [NoteRow("volume-note", st.VOLUMED_NOTES[self.volumed])]
         v = self.volume
         # File unreadable: the rows stay, greyed out, with no option selected; the status line says why.
-        sensitive = v is not None and not self.busy and self.cal is None
+        sensitive = v is not None and not self.busy and self.cal is None and self.rng is None
         rows = []
-        for key, title, reset_sub in (("range", "Speakers", "Quiet to Max"),
-                                      ("hsrange", "Headphones", "Lowest to Max")):
+        for key, title in (("range", "Speakers"), ("hsrange", "Headphones")):
             rows.append(HeaderRow("h-" + key, title))
-            for end, label, options in st.VOLUME_ROWS[key]:
-                current = st.current_end(v, key, end, options) if v else None
-                rows.append(ChoiceRow("%s-%s" % (key, end), label, "Custom" if v and current is None else "",
-                                      options, current,
-                                      lambda step, key=key, end=end: self.set_volume(
-                                          st.end_changes(self.volume, key, end, step)),
-                                      self._focus_row, locked=True, sensitive=sensitive))
-            rows.append(self._volume_reset_row(key, title[:-1] + " defaults", reset_sub, sensitive))
+            rows.append(self._range_row(key, title[:-1] + " range"))
+            rows.append(self._volume_reset_row(key, title[:-1] + " defaults",
+                                               st.range_text(key, *st.VOLUMED_DEFAULTS[key]), sensitive))
         rows.append(HeaderRow("h-cal", "Calibration"))
         self.reading_row = InfoRow("wheel-reading", "Wheel reading", self._reading_text())
         rows.append(self.reading_row)
         cal = ButtonRow("calibrate", "Calibrate",
                         self.cal.prompt() if self.cal else "Turn the wheel to each mark",
                         "Record" if self.cal else "Start", self._calibrate, locked=True)
-        cal_ok = v is not None and not self.busy and self.wheel_raw is not None
+        cal_ok = v is not None and not self.busy and self.wheel_raw is not None and self.rng is None
         cal.box.set_sensitive(cal_ok)
         rows.append(cal)
         rows.append(self._volume_reset_row("cal", "Calibration defaults",
                                            st.format_cal(st.VOLUMED_DEFAULTS["cal"]), sensitive))
         return rows
+
+    def _range_row(self, key, label):
+        v = self.volume
+        mine = self.rng is not None and self.rng.key == key
+        problem = None if self.jack is None else st.jack_problem(key, self.jack)
+        if mine:
+            subtitle, action = self.rng.prompt(), "Record"
+        else:
+            subtitle, action = problem or (st.range_text(key, *v.values[key]) if v else ""), "Set"
+        row = RangeRow("set-" + key, label, subtitle, action, lambda: self._set_range(key), self._range_step, mine)
+        row.box.set_sensitive(mine or (v is not None and not self.busy and self.cal is None and self.rng is None
+                                       and self.jack is not None and problem is None))
+        return row
 
     def _volume_reset_row(self, key, label, subtitle, sensitive):
         def reset():
@@ -677,9 +728,18 @@ class PyraSettingsWindow(Gtk.Window):
         return "Can't read" if self.wheel_raw is None else str(self.wheel_raw)
 
     def _poll_wheel(self):
-        """Keep the wheel reading live while the page is shown."""
+        """Keep the wheel reading and the jack live while the page is shown, and the preview in place."""
         if self.page != VOLUME_PAGE or self.volumed != st.VOLUMED_OK:
             return True
+        self.poll_ticks += 1
+        if self.rng is not None:
+            self._hold_preview()
+        if self.poll_ticks % JACK_POLL_TICKS == 0 and self.read_jack():
+            if self.rng is not None:
+                self._cancel_range("Headphones %s. Range not changed." % (
+                    "plugged in" if self.jack else "unplugged"), error=True)
+            else:
+                self.rebuild()
         old = self.wheel_raw
         try:
             self.wheel_raw = st.read_wheel_raw()
@@ -735,6 +795,113 @@ class PyraSettingsWindow(Gtk.Window):
         self.rebuild()
         self.status(message, ERROR_MS if error else SAVED_MS, error=error)
 
+    # Setting a range by ear (docs/ui.md "Setting a range by ear")
+
+    def _set_range(self, key):
+        """Start, or record the current stage's end; after the second, save it."""
+        if self.rng is not None:
+            if self.rng.key != key:
+                return
+            if self.rng.record():
+                result = self.rng.result
+                self._end_range()
+                self.set_volume({key: result})
+            elif self._preview():
+                self.rebuild()
+            return
+        if self.busy or self.volume is None or self.cal is not None:
+            return
+        try:
+            jack = st.read_jack()
+            problem = st.jack_problem(key, jack)
+            if problem:
+                self.jack = jack
+                self.rebuild()
+                self.status(problem + ".", ERROR_MS, error=True)
+                return
+            sink = st.read_sink()
+            mixer = st.read_mixer(key)
+        except (OSError, ValueError) as e:
+            self.status("Can't play the test sound: %s." % e, ERROR_MS, error=True)
+            return
+        self.rng = st.RangeSetting(key, *self.volume.values[key])
+        self.rng_sink, self.rng_mixer = sink, mixer
+        try:
+            for argv in st.sink_preview_argvs(sink, key):
+                st.run_audio(argv)
+            if not self._preview():
+                return
+            self._play_loop()
+        except (OSError, GLib.Error) as e:
+            self._cancel_range("Can't play the test sound: %s. Range not changed." % getattr(e, "message", e),
+                               error=True)
+            return
+        self.rebuild()
+
+    def _range_step(self, delta):
+        if self.rng is not None and self.rng.step(delta) and self._preview():
+            self.rebuild()
+
+    def _preview(self):
+        """Write the level to the mixer; False if it failed, which cancels."""
+        try:
+            st.write_mixer(self.rng.key, self.rng.level)
+            return True
+        except OSError as e:
+            self._cancel_range("Can't set the volume: %s. Range not changed." % e, error=True)
+            return False
+
+    def _hold_preview(self):
+        """pyra_volumed writes the mixer when the wheel moves; put the preview back (the wheel is ignored)."""
+        try:
+            if st.read_mixer(self.rng.key) != self.rng.level:
+                self._preview()
+        except (OSError, ValueError):
+            pass
+
+    def _play_loop(self):
+        sound = SOURCE_SOUND if os.path.exists(SOURCE_SOUND) else st.SOUND_PATH
+        proc = Gio.Subprocess.new(st.paplay_argv(self.rng_sink, sound),
+                                  Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE)
+        self.loop_proc = proc
+        proc.wait_async(None, self._loop_ended)
+
+    def _loop_ended(self, proc, result):
+        try:
+            proc.wait_finish(result)
+        except GLib.Error:
+            pass
+        if proc is not self.loop_proc or self.rng is None:
+            return
+        if proc.get_if_exited() and proc.get_exit_status() == 0:
+            self._play_loop()
+        else:
+            self.loop_proc = None
+            self._cancel_range("Can't play the test sound. Range not changed.", error=True)
+
+    def _end_range(self):
+        """Stop the loop and put the sound back as it was: sink port, volume, mute and the mixer step."""
+        rng, sink, mixer, proc = self.rng, self.rng_sink, self.rng_mixer, self.loop_proc
+        self.rng = self.rng_sink = self.rng_mixer = self.loop_proc = None
+        if proc is not None:
+            proc.force_exit()
+        for argv in st.sink_restore_argvs(sink):
+            try:
+                st.run_audio(argv)
+            except OSError as e:
+                print("pyra-settings: %s" % e)
+        try:
+            st.write_mixer(rng.key, mixer)
+        except OSError as e:
+            print("pyra-settings: %s" % e)
+
+    def _cancel_range(self, message="Range not changed.", error=False):
+        if self.rng is None:
+            return
+        self._end_range()
+        self.rebuild()
+        self.status(message, ERROR_MS if error else SAVED_MS, error=error)
+
     # Focus and navigation
 
     def _page_rows(self):
@@ -752,6 +919,11 @@ class PyraSettingsWindow(Gtk.Window):
             if focused is None or focused.key != "calibrate":
                 # Moving off the Calibrate row cancels the calibration (docs/ui.md "Volume wheel").
                 self._cancel_calibration()
+                return
+        if self.rng is not None:
+            focused = self._focused_row()
+            if focused is None or focused.key != "set-" + self.rng.key:
+                self._cancel_range()
                 return
         self.stack.set_visible_child_name(PAGES[self.page][0])
         for i, box in enumerate(self.sidebar_rows):
@@ -840,6 +1012,9 @@ class PyraSettingsWindow(Gtk.Window):
             if self.cal is not None:
                 self._cancel_calibration()
                 return True
+            if self.rng is not None:
+                self._cancel_range()
+                return True
             self.in_page = False
             self._show_focus()
         elif row is None:
@@ -875,13 +1050,14 @@ class PyraSettingsWindow(Gtk.Window):
         if self.in_page:
             row = self._focused_row()
             hints = [(("▲", "▼"), "Move")]
-            if row is not None and row.kind == "choice":
+            if row is not None and (row.kind == "choice" or getattr(row, "adjusting", False)):
                 hints.append((("◀", "▶"), "Change"))
             if row is not None and row.kind == "switch":
                 hints.append((("A",), "Toggle"))
             elif row is not None and row.kind in ("button", "warning"):
                 hints.append((("A",), row.action))
-            hints += [(("B",), "Cancel" if self.cal is not None else "Back"), (("Y", "X"), "Page")]
+            cancel = self.cal is not None or self.rng is not None
+            hints += [(("B",), "Cancel" if cancel else "Back"), (("Y", "X"), "Page")]
         else:
             hints = [(("▲", "▼"), "Choose"), (("A",), "Open"), (("Y", "X"), "Prev / next page")]
         for child in self.hints.get_children():

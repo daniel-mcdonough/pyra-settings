@@ -1,12 +1,14 @@
 """What the GUI shows and asks for, without GTK: sysfs wake state, gsettings values, the nub settings, helper
-commands and their results (NEXT 1.3, 4.6, 4.11). The rules are docs/design.md "v1 settings", docs/nubs.md and
+commands and their results (NEXT 1.3, 4.6, 4.11, 4.15). The rules are docs/design.md "v1 settings", docs/nubs.md and
 docs/volume-wheel.md; the presets, groups, warning, nub and volume wheel options are docs/ui.md.
 
 The GUI reads sysfs, /etc/pyrainput.cfg and /etc/pyra_volumed.conf and never writes them. PYRA_SETTINGS_SYSFS,
-PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED and PYRA_SETTINGS_IIO point it at fake files on the PC; the helper
-never reads any of these variables.
+PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED and PYRA_SETTINGS_IIO point it at fake files on the PC, and
+PYRA_SETTINGS_AUDIO at a stand-in for amixer, pactl and paplay; the helper never reads any of these variables.
+
 """
 
+import json
 import os
 import re
 import shlex
@@ -422,17 +424,9 @@ def read_volumed_check(binary=None):
 
 
 # The volume wheel page (docs/ui.md "Volume wheel", docs/volume-wheel.md): the file as the daemon reads it, the
-# preset steps, and the guided calibration.
+# ranges set by ear, and the guided calibration.
 VOLUMED_RANGE_MAX = {"range": 29, "hsrange": 15}
 VOLUMED_DEFAULTS = {"cal": (16, 144, 394, 1071, 2068), "range": (6, 29), "hsrange": (0, 15)}
-# Choice rows: key, row key, label, which end, options as (step, button text). Speakers step = (dB + 52) / 2,
-# headphones (dB + 30) / 2. The built-in values are among the options.
-VOLUME_ROWS = {
-    "range": (("lo", "Quietest", ((0, "Lowest"), (6, "Quiet"), (10, "Low"), (14, "Medium"))),
-              ("hi", "Loudest", ((26, "Normal"), (29, "Max")))),
-    "hsrange": (("lo", "Quietest", ((0, "Lowest"), (3, "Quiet"), (6, "Low"))),
-                ("hi", "Loudest", ((12, "Reduced"), (15, "Max")))),
-}
 _NUM = r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?(?![0-9])"
 # sscanf(" cal %lf %lf %lf %lf %lf"), sscanf(" range %ld %ld"): %lf and %ld skip blanks before the number, so
 # none are needed after the keyword or between numbers, and anything after the last number is ignored.
@@ -495,18 +489,6 @@ def read_volumed(path=None):
 
 def volumed_error_text(error):
     return "Can't read the volume wheel settings: %s" % _error_detail(error)
-
-
-def current_end(volume, key, end, options):
-    """The option a range's lo or hi matches, or None ("Custom")."""
-    value = volume.values[key][0 if end == "lo" else 1]
-    return value if value in [o for o, _ in options] else None
-
-
-def end_changes(volume, key, end, step):
-    """{key: (lo, hi)} with one end set to step and the other kept."""
-    lo, hi = volume.values[key]
-    return {key: (step, hi) if end == "lo" else (lo, step)}
 
 
 def volume_argv(changes):
@@ -572,6 +554,156 @@ class Calibration:
         if p[-1] > VOLUMED_RAW_MAX:
             return "the wheel read more than %d" % VOLUMED_RAW_MAX
         return None
+
+
+# Setting a range by ear (NEXT 4.15, docs/ui.md "Setting a range by ear"). The preview goes straight to the
+# codec's mixer as the user (audio group); the loop plays on the codec's PulseAudio sink at 100%, because its
+# software volume multiplies the mixer's.
+AUDIO_CARD = "L15"
+MIXER_CONTROLS = {"range": "Handsfree Playback Volume", "hsrange": "Headset Playback Volume"}
+JACK_CONTROL = "Headset Stereophone Jack"
+RANGE_PORTS = {"range": "pyra-speaker", "hsrange": "pyra-headphones"}
+RANGE_DB = {"range": -52, "hsrange": -30}   # dB at step 0; every step is 2 dB
+SOUND_PATH = "/usr/share/pyra-settings/sounds/volume-test.ogg"
+# For running the GUI on the PC only: a command put in front of amixer, pactl and paplay, e.g. tests/fakeaudio.py.
+AUDIO_ENV = "PYRA_SETTINGS_AUDIO"
+AUDIO_TIMEOUT = 5
+
+Sink = namedtuple("Sink", "name port volumes mute")
+
+
+def step_db(key, step):
+    db = RANGE_DB[key] + 2 * step
+    return "%+d dB" % db if db else "0 dB"
+
+
+def range_text(key, lo, hi):
+    return "%s to %s" % (step_db(key, lo)[:-3], step_db(key, hi))
+
+
+def audio_argv(*args):
+    return shlex.split(os.environ.get(AUDIO_ENV, "")) + list(args)
+
+
+def run_audio(argv):
+    """Run an audio command; its stdout. Raises OSError with the command's last error line."""
+    try:
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=AUDIO_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        raise OSError("%s timed out" % argv[0])
+    if out.returncode != 0:
+        raise OSError(_last_line(out.stderr) or "%s failed (exit %d)" % (argv[0], out.returncode))
+    return out.stdout
+
+
+def amixer_argv(*args):
+    return audio_argv("amixer", "-c", AUDIO_CARD, *args)
+
+
+def parse_cget(text):
+    """The values of `amixer cget`: the line "  : values=29,29"."""
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith(": values="):
+            return line[len(": values="):].split(",")
+    raise ValueError("no values in amixer's output")
+
+
+def read_mixer(key, run=run_audio):
+    return int(parse_cget(run(amixer_argv("cget", "name=" + MIXER_CONTROLS[key])))[0])
+
+
+def write_mixer(key, step, run=run_audio):
+    run(amixer_argv("-q", "cset", "name=" + MIXER_CONTROLS[key], str(step)))
+
+
+def read_jack(run=run_audio):
+    """True if headphones are plugged in."""
+    value = parse_cget(run(amixer_argv("cget", "name=" + JACK_CONTROL)))[0]
+    if value not in ("on", "off"):
+        raise ValueError("%s reads %r" % (JACK_CONTROL, value))
+    return value == "on"
+
+
+def jack_problem(key, jack):
+    """None if the range's output is the one the jack selects, else the row's subtitle."""
+    if key == "range" and jack:
+        return "Unplug the headphones to set it"
+    if key == "hsrange" and not jack:
+        return "Plug in headphones to set it"
+    return None
+
+
+def parse_sinks(text):
+    """The sink that has the Pyra's ports, from `pactl -f json list sinks`."""
+    for sink in json.loads(text):
+        if set(RANGE_PORTS.values()) <= {p.get("name") for p in sink.get("ports", [])}:
+            volumes = [v["value"] for v in sink["volume"].values()]
+            return Sink(sink["name"], sink.get("active_port"), volumes, bool(sink["mute"]))
+    raise ValueError("no PulseAudio sink with the ports %s" % " and ".join(sorted(RANGE_PORTS.values())))
+
+
+def read_sink(run=run_audio):
+    return parse_sinks(run(audio_argv("pactl", "-f", "json", "list", "sinks")))
+
+
+def sink_preview_argvs(sink, key):
+    """The output for the range, at 100% and unmuted."""
+    return [audio_argv("pactl", "set-sink-port", sink.name, RANGE_PORTS[key]),
+            audio_argv("pactl", "set-sink-volume", sink.name, "100%"),
+            audio_argv("pactl", "set-sink-mute", sink.name, "0")]
+
+
+def sink_restore_argvs(sink):
+    """Back to the port, volume and mute from before the preview."""
+    argvs = [audio_argv("pactl", "set-sink-port", sink.name, sink.port)] if sink.port else []
+    return argvs + [audio_argv("pactl", "set-sink-volume", sink.name, *map(str, sink.volumes)),
+                    audio_argv("pactl", "set-sink-mute", sink.name, "1" if sink.mute else "0")]
+
+
+def paplay_argv(sink, sound):
+    return audio_argv("paplay", "--device=" + sink.name, sound)
+
+
+class RangeSetting:
+    """Setting one range by ear: first hi, then lo, each with left/right one step at a time."""
+
+    def __init__(self, key, lo, hi):
+        self.key = key
+        self.max = VOLUMED_RANGE_MAX[key]
+        self.lo, self.hi = lo, hi
+        self.stage = "hi"
+        self.level = min(max(hi, 1), self.max)
+
+    def limits(self):
+        # hi leaves room for a lo below it; lo stays below the hi just recorded.
+        return (1, self.max) if self.stage == "hi" else (0, self.hi - 1)
+
+    def step(self, delta):
+        """Move the level; True if it changed."""
+        low, high = self.limits()
+        level = max(low, min(high, self.level + delta))
+        changed, self.level = level != self.level, level
+        return changed
+
+    def record(self):
+        """Record the level for this stage; True when both ends are set."""
+        if self.stage == "hi":
+            self.hi = self.level
+            self.stage = "lo"
+            self.level = min(self.lo, self.hi - 1)
+            return False
+        self.lo = self.level
+        return True
+
+    @property
+    def result(self):
+        return (self.lo, self.hi)
+
+    def prompt(self):
+        text = ("Step 1 of 2: make it as loud as you'd ever want" if self.stage == "hi" else
+                "Step 2 of 2: make it as quiet as you still want to hear")
+        return "%s (%s)" % (text, step_db(self.key, self.level))
 
 
 def helper_command():

@@ -410,31 +410,10 @@ class VolumePageTest(unittest.TestCase):
         self.assertEqual(st.parse_volumed("range 629\n").values["range"], (6, 29))
         self.assertEqual(st.parse_volumed("cal 16.5 144 394 1071 2068\n").values["cal"][0], 16.5)
 
-    def test_built_in_values_are_options(self):
-        v = st.parse_volumed("")
-        for key, rows in st.VOLUME_ROWS.items():
-            for end, _label, options in rows:
-                self.assertIsNotNone(st.current_end(v, key, end, options), (key, end))
-
-    def test_custom_end(self):
+    def test_with_values(self):
         v = st.parse_volumed("range 8 27\n")
-        lo, hi = st.VOLUME_ROWS["range"]
-        self.assertIsNone(st.current_end(v, "range", "lo", lo[2]))
-        self.assertIsNone(st.current_end(v, "range", "hi", hi[2]))
-
-    def test_end_changes_keep_the_other_end(self):
-        v = st.parse_volumed("range 8 27\n")
-        self.assertEqual(st.end_changes(v, "range", "lo", 10), {"range": (10, 27)})
-        self.assertEqual(st.end_changes(v, "range", "hi", 29), {"range": (8, 29)})
         self.assertEqual(v.with_values({"range": (10, 27), "cal": None}).values["range"], (10, 27))
-
-    def test_every_preset_pair_is_valid(self):
-        # Any lo option with any hi option: the helper and the daemon take it.
-        for key, (lo, hi) in st.VOLUME_ROWS.items():
-            for a, _ in lo[2]:
-                for b, _ in hi[2]:
-                    self.assertTrue(0 <= a < b <= st.VOLUMED_RANGE_MAX[key], (key, a, b))
-                    self.assertEqual(helper.check_volumed_value(key, "%d %d" % (a, b)), "%d %d" % (a, b))
+        self.assertEqual(v.with_values({"range": None}).values["range"], (6, 29))
 
     def test_constants_match_the_helper(self):
         self.assertEqual(st.VOLUMED_RANGE_MAX, helper.VOLUMED_RANGE_MAX)
@@ -486,6 +465,127 @@ class VolumePageTest(unittest.TestCase):
             for p in points:
                 c.record([p])
             self.assertIn(word, c.problem())
+
+
+SINKS_JSON = """[{"name": "alsa_output.hdmi", "active_port": null, "mute": false, "ports": [],
+  "volume": {"front-left": {"value": 65536}}},
+ {"name": "aess", "active_port": "pyra-headphones", "mute": true,
+  "ports": [{"name": "pyra-speaker", "availability": "not available"},
+            {"name": "pyra-headphones", "availability": "available"}],
+  "volume": {"front-left": {"value": 40000, "value_percent": "61%"}, "front-right": {"value": 39000}}}]"""
+
+
+class RangeByEarTest(unittest.TestCase):
+    """Setting a range by ear (NEXT 4.15, docs/ui.md "Setting a range by ear")."""
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop(st.AUDIO_ENV, None)
+
+    def test_db_text(self):
+        self.assertEqual(st.step_db("range", 29), "+6 dB")
+        self.assertEqual(st.step_db("range", 26), "0 dB")
+        self.assertEqual(st.step_db("hsrange", 0), "-30 dB")
+        self.assertEqual(st.range_text("range", 6, 29), "-40 to +6 dB")
+        self.assertEqual(st.range_text("hsrange", 0, 15), "-30 to 0 dB")
+
+    def test_steps_and_limits(self):
+        r = st.RangeSetting("range", 6, 29)
+        self.assertEqual(r.prompt(), "Step 1 of 2: make it as loud as you'd ever want (+6 dB)")
+        self.assertFalse(r.step(1))             # at the control's max
+        for _ in range(40):
+            r.step(-1)
+        self.assertEqual(r.level, 1)            # room left for a lo below it
+        r.step(3)
+        self.assertFalse(r.record())
+        self.assertEqual((r.stage, r.hi, r.level), ("lo", 4, 3))   # lo 6 lowered to hi - 1
+        self.assertEqual(r.prompt(), "Step 2 of 2: make it as quiet as you still want to hear (-46 dB)")
+        self.assertFalse(r.step(1))
+        r.step(-2)
+        self.assertTrue(r.record())
+        self.assertEqual(r.result, (1, 4))
+
+    def test_starts_at_the_current_ends(self):
+        r = st.RangeSetting("hsrange", 3, 12)
+        self.assertEqual(r.level, 12)
+        r.record()
+        self.assertEqual(r.level, 3)
+
+    def test_every_result_is_valid(self):
+        # Whatever the keys do, the helper and the daemon take the result.
+        for key, top in st.VOLUMED_RANGE_MAX.items():
+            for start in ((0, top), (top - 1, top), (0, 1)):
+                for down in range(top + 2):
+                    for up in range(top + 2):
+                        r = st.RangeSetting(key, *start)
+                        r.step(-down)
+                        r.record()
+                        r.step(up - down)
+                        r.record()
+                        value = "%d %d" % r.result
+                        self.assertEqual(helper.check_volumed_value(key, value), value, (key, start, down, up))
+
+    def test_parse_cget(self):
+        out = ("numid=30,iface=MIXER,name='Handsfree Playback Volume'\n"
+               "  ; type=INTEGER,access=rw---R--,values=2,min=0,max=29,step=0\n"
+               "  : values=29,28\n  | dBscale-min=-52.00dB,step=2.00dB,mute=0\n")
+        self.assertEqual(st.parse_cget(out), ["29", "28"])
+        with self.assertRaises(ValueError):
+            st.parse_cget("nothing\n")
+
+    def test_mixer_and_jack(self):
+        calls = []
+
+        def run(argv):
+            calls.append(argv)
+            return "  : values=on\n" if "Jack" in argv[-1] else "  : values=12,12\n"
+
+        self.assertEqual(st.read_mixer("hsrange", run), 12)
+        self.assertTrue(st.read_jack(run))
+        st.write_mixer("range", 20, run)
+        self.assertEqual(calls, [
+            ["amixer", "-c", "L15", "cget", "name=Headset Playback Volume"],
+            ["amixer", "-c", "L15", "cget", "name=Headset Stereophone Jack"],
+            ["amixer", "-c", "L15", "-q", "cset", "name=Handsfree Playback Volume", "20"]])
+        with self.assertRaises(ValueError):
+            st.read_jack(lambda argv: "  : values=12\n")
+
+    def test_jack_problem(self):
+        self.assertIsNone(st.jack_problem("range", False))
+        self.assertIsNone(st.jack_problem("hsrange", True))
+        self.assertIn("Unplug", st.jack_problem("range", True))
+        self.assertIn("Plug in", st.jack_problem("hsrange", False))
+
+    def test_sink(self):
+        sink = st.parse_sinks(SINKS_JSON)
+        self.assertEqual(sink, st.Sink("aess", "pyra-headphones", [40000, 39000], True))
+        with self.assertRaises(ValueError):
+            st.parse_sinks("[]")
+
+    def test_sink_commands(self):
+        sink = st.Sink("aess", "pyra-headphones", [40000, 39000], True)
+        self.assertEqual(st.sink_preview_argvs(sink, "range"), [
+            ["pactl", "set-sink-port", "aess", "pyra-speaker"],
+            ["pactl", "set-sink-volume", "aess", "100%"],
+            ["pactl", "set-sink-mute", "aess", "0"]])
+        self.assertEqual(st.sink_restore_argvs(sink), [
+            ["pactl", "set-sink-port", "aess", "pyra-headphones"],
+            ["pactl", "set-sink-volume", "aess", "40000", "39000"],
+            ["pactl", "set-sink-mute", "aess", "1"]])
+        self.assertEqual(st.paplay_argv(sink, "/x.ogg"), ["paplay", "--device=aess", "/x.ogg"])
+
+    def test_audio_override(self):
+        os.environ[st.AUDIO_ENV] = "python3 fakeaudio.py /tmp/state"
+        self.assertEqual(st.amixer_argv("cget")[:4], ["python3", "fakeaudio.py", "/tmp/state", "amixer"])
+
+    def test_run_audio_errors(self):
+        self.assertEqual(st.run_audio(["sh", "-c", "echo out"]), "out\n")
+        with self.assertRaisesRegex(OSError, "no card"):
+            st.run_audio(["sh", "-c", "echo 'amixer: no card' >&2; exit 1"])
+        with self.assertRaises(OSError):
+            st.run_audio(["/nonexistent/amixer"])
 
 
 if __name__ == "__main__":

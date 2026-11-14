@@ -176,78 +176,80 @@ agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every r
 
 ### Volume wheel
 
-Not in the mockup. Drafted for NEXT 4.11 from the row kinds above and agreed with the owner, 2026-11-14. Keys,
-file syntax and the daemons: `volume-wheel.md`. Every row but the info row goes through `set-volume`, so each has
-the lock.
+Not in the mockup. Drafted for NEXT 4.11 from the row kinds above and agreed with the owner, 2026-11-14; the
+range rows replaced the Quietest/Loudest presets in NEXT 4.15 (below). Keys, file syntax and the daemons:
+`volume-wheel.md`. Every row but the info row goes through `set-volume`, so each has the lock.
 
 When the check (`volume-wheel.md`, "The check") fails, the page holds one row with its `VOLUMED_NOTES` line and
 nothing else. Otherwise:
 
-1. Header **Speakers** (`range`, steps of Handsfree Playback Volume).
-2. Choice **Quietest**: Lowest 0 / Quiet 6 / Low 10 / Medium 14 (-52 / -40 / -32 / -24 dB), the range's `lo`.
-3. Choice **Loudest**: Normal 26 / Max 29 (0 / +6 dB), the range's `hi`.
-4. Button **Speaker defaults**, subtitle "Quiet to Max", action "Reset": `range=default`.
-5. Header **Headphones** (`hsrange`, steps of Headset Playback Volume).
-6. Choice **Quietest**: Lowest 0 / Quiet 3 / Low 6 (-30 / -24 / -18 dB).
-7. Choice **Loudest**: Reduced 12 / Max 15 (-6 / 0 dB).
-8. Button **Headphone defaults**, subtitle "Lowest to Max", action "Reset": `hsrange=default`.
-9. Header **Calibration**.
-10. Info **Wheel reading**: `in_voltage2_raw` of palmas-gpadc, live (read every 250 ms while the page is shown);
-    "Can't read" when there is no such device.
-11. Button **Calibrate**, subtitle "Turn the wheel to each mark", action "Start". The guided calibration runs in
-    place on this row (owner, 2026-11-14): the subtitle becomes "Step N of 5: turn the wheel all the way down"
-    (then a quarter of the way up, half way up, three quarters of the way up, all the way up), the action
-    "Record", and the hint bar A Record, B Cancel. A records the mark: the mean of 5 readings 100 ms apart. After
-    the fifth, the five values go to `set-volume cal=...` (one password). Readings that the daemon would ignore
-    (the bottom reads 0, or a mark not above the one before) save nothing; the status line says which, for 8 s.
-    B, or moving the focus off the row (any key or tap, a page change), cancels: "Calibration cancelled.
-    Nothing changed." While it runs the other rows are greyed out. Greyed out itself when the wheel can't be read.
-12. Button **Calibration defaults**, subtitle the built-in values "16 144 394 1071 2068", action "Reset":
+1. Header **Speakers** (`range`, steps of Handsfree Playback Volume, -52..+6 dB).
+2. Button **Speaker range**, subtitle the current ends in dB ("-40 to +6 dB"), action "Set": the guided range
+   setting below. With headphones plugged in it is greyed out and the subtitle says "Unplug the headphones to
+   set it".
+3. Button **Speaker defaults**, subtitle "-40 to +6 dB", action "Reset": `range=default`.
+4. Header **Headphones** (`hsrange`, steps of Headset Playback Volume, -30..0 dB).
+5. Button **Headphone range**, the same, for `hsrange`. Greyed out without headphones: "Plug in headphones to
+   set it".
+6. Button **Headphone defaults**, subtitle "-30 to 0 dB", action "Reset": `hsrange=default`.
+7. Header **Calibration**.
+8. Info **Wheel reading**: `in_voltage2_raw` of palmas-gpadc, live (read every 250 ms while the page is shown);
+   "Can't read" when there is no such device.
+9. Button **Calibrate**, subtitle "Turn the wheel to each mark", action "Start". The guided calibration runs in
+   place on this row (owner, 2026-11-14): the subtitle becomes "Step N of 5: turn the wheel all the way down"
+   (then a quarter of the way up, half way up, three quarters of the way up, all the way up), the action
+   "Record", and the hint bar A Record, B Cancel. A records the mark: the mean of 5 readings 100 ms apart. After
+   the fifth, the five values go to `set-volume cal=...` (one password). Readings that the daemon would ignore
+   (the bottom reads 0, or a mark not above the one before) save nothing; the status line says which, for 8 s.
+   B, or moving the focus off the row (any key or tap, a page change), cancels: "Calibration cancelled.
+   Nothing changed." While it runs the other rows are greyed out. Greyed out itself when the wheel can't be read.
+10. Button **Calibration defaults**, subtitle the built-in values "16 144 394 1071 2068", action "Reset":
     `cal=default`.
 
-- Labels on the buttons are the words only; the steps are what is written (owner, 2026-11-14). Each built-in
-  value is one of the options (Quiet to Max, Lowest to Max).
-- Picking one end writes the range with the other end as it is (`range=14 29`). Every `lo` option is below every
-  `hi` option, so any pick is valid.
 - The page reads `/etc/pyra_volumed.conf` the way the daemon does (`volume-wheel.md`, "File syntax"): a later
-  valid line wins, a line the daemon would ignore is ignored. A value no option matches shows "Custom" in the
-  subtitle. It rereads the file each time the page is opened.
+  valid line wins, a line the daemon would ignore is ignored. It rereads the file each time the page is opened.
 - After a save: "Saved" for 3 s. The helper restarts pyra_volumed, so it applies at once.
-- File unreadable (not missing): the rows stay, greyed out, no option selected; the status line's idle text says
-  "Can't read the volume wheel settings: <error> (<file>)".
+- File unreadable (not missing): the rows stay, greyed out; the status line's idle text says "Can't read the
+  volume wheel settings: <error> (<file>)".
 - A raised `lo` made the wheel flutter at the bottom with pyra-hacks 0.38+pyra2. The owner chose to fix the
   daemon rather than limit the page: fixed in 0.38+pyra3 (`volume-wheel.md`, "Off band").
 
-#### Replacing the preset rows (NEXT 4.15, draft, not agreed)
+#### Setting a range by ear (NEXT 4.15, agreed 2026-11-14)
 
-On the Pyra (NEXT 4.13, 2026-11-14) the owner found the Quietest and Loudest presets don't fit how people set a
-volume: the saves land and the daemon applies them, but a list of named levels can't be judged without sound,
-and the change is only heard at one end of the wheel. Owner's direction: the ends become their own guided
-calibration, with music playing, where the user adjusts until it sounds right. Rows 1-8 go; Calibration stays.
+On the Pyra (NEXT 4.13) the owner found Quietest/Loudest presets unusable: a list of named levels can't be judged
+without sound. The ends are set by ear instead, with music playing, in place on the range row, like Calibrate.
 
-Agreed so far (owner, 2026-11-14):
+1. A on **Speaker range** (or **Headphone range**): the bundled loop starts (below), and the row reads "Step 1 of
+   2: make it as loud as you'd ever want (+6 dB)", action "Record". The level starts at the current `hi`.
+2. Left/right step the level by one mixer step (2 dB), heard at once; the subtitle's dB follows. A records `hi`.
+   Limits: 1 to the control's max (29, 15), so a `lo` below it is always possible.
+3. "Step 2 of 2: make it as quiet as you still want to hear (-40 dB)", starting at the current `lo` (lowered to
+   `hi` - 1 if needed). Left/right, limits 0 to `hi` - 1. A records `lo`.
+4. The loop stops, the sound goes back as it was (below), then one password: `set-volume range=lo hi` (or
+   `hsrange`). The restart puts the level where the wheel is, in the new range.
+5. B, moving the focus off the row, or the jack changing cancels at any step: loop stopped, sound back as it was,
+   "Range not changed." (unplugging: "Headphones unplugged. Range not changed.").
 
-- The page plays a bundled loop, looped with `paplay` as the user: `data/sounds/volume-test.ogg`, installed in
-  `/usr/share/pyra-settings/sounds/`. An upbeat electronic excerpt the owner made on a paid Suno plan and trimmed
-  (31.6 s, 48 kHz stereo, Vorbis q4, 500 KB). Loudness range 1.2 LU (about -13 LUFS, true peak -1.8 dBFS), no
-  fade at either end, so it loops without a dip. Metadata stripped (the source carried a username and the Suno
-  song id). CC0-1.0 in `debian/copyright`.
-
-Draft flow, per output (Speakers, Headphones; headphones need the jack in):
-
-1. Button **Speaker range** (subtitle the current `lo`-`hi` in dB), action "Set". The loop starts.
-2. Step 1 of 2: "Make it as loud as you'd ever want." Left/right step the level, heard at once; A records `hi`.
-3. Step 2 of 2: "Make it as quiet as you still want to hear." Left/right, A records `lo` (kept below `hi`).
-4. One password: `set-volume range=lo hi` (or `hsrange`). B cancels at any step: nothing changed, loop stops.
-5. Reset rows stay as they are.
-
-Open, for the owner: whether the wheel is ignored during the steps (left/right only, the draft) or the user holds
-it at the end being set. Mechanism notes for the build session: PulseAudio has no volume element on these
-controls (dragonbox-pyra `device/pulse/alsa-mixer/paths/pyra-*.conf`: routes only, software volume on top), so it
-doesn't fight a preview written straight to the mixer. pyra_volumed writes only on a step change, a restart or an
-off/on change, so with the wheel untouched it leaves the preview alone; if the wheel moves the page should
-re-apply. PulseAudio's software volume multiplies the result, so the step plays at sink volume 100% and puts the
-user's volume back after. To check: whether the user can write the codec's mixer (audio group) without the helper.
+- Hint bar during the steps: ◀▶ Change · A Record · B Cancel. The other rows are greyed out.
+- **The wheel is ignored** during the steps (owner): pyra_volumed writes the mixer only on a step change, a
+  restart or an off/on change, so a resting wheel leaves the preview alone; if the wheel moves, the page writes
+  the preview back (it checks the mixer every 250 ms). Holding the wheel at an end wouldn't work: the bottom stop
+  is the daemon's off band (step 0), not `lo`.
+- **Output matches the jack** (owner): speakers only with the headphones out, headphones only with them in
+  (`Headset Stereophone Jack`). For the steps the page sets PulseAudio's port on the codec's sink to the
+  matching one (`pyra-speaker`, `pyra-headphones`), the sink to 100% and unmuted, and plays the loop on that
+  sink, because PulseAudio's software volume multiplies the mixer's. On save or cancel it puts back the port,
+  the volume, the mute and the mixer value from before the step (pyra_volumed won't rewrite it with the wheel
+  at rest).
+- **Start levels** (owner): the current ends, as above.
+- The preview is written as the user (`amixer -c L15 cset`; the user is in `audio`), not through the helper.
+- The loop: `data/sounds/volume-test.ogg`, installed in `/usr/share/pyra-settings/sounds/`, played with `paplay`
+  and started again each time it ends. An upbeat electronic excerpt the owner made on a paid Suno plan and
+  trimmed (31.6 s, 48 kHz stereo, Vorbis q4, 500 KB). Loudness range 1.2 LU (about -13 LUFS, true peak -1.8
+  dBFS), no fade at either end, so it loops without a dip. Metadata stripped (the source carried a username and
+  the Suno song id). CC0-1.0 in `debian/copyright`.
+- If PulseAudio, the jack or the mixer can't be read at the start, nothing starts and the status line says why
+  for 8 s.
 
 ## Warnings
 

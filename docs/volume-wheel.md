@@ -102,10 +102,29 @@ built-in value applies.
 ## The page (state.py, NEXT 4.11)
 
 Layout: `ui.md`, "Volume wheel". `state.py` `parse_volumed` mirrors the daemon's `sscanf` reading, quirks
-included (`cal16 ...` and `range 7+28` read; `range 629` is one number and the line is ignored). The preset steps
-and the built-in values are `VOLUME_ROWS` and `VOLUMED_DEFAULTS`; `tests/test_state.py` `VolumePageTest` checks
-that the helper accepts every preset pair and every calibration the page would send, and that the GUI's limits
-match the helper's. `read_wheel_raw` finds palmas-gpadc by `name` under `/sys/bus/iio/devices`.
+included (`cal16 ...` and `range 7+28` read; `range 629` is one number and the line is ignored). The built-in
+values are `VOLUMED_DEFAULTS`; `tests/test_state.py` `VolumePageTest` checks every calibration the page would
+send against the helper, and that the GUI's limits match the helper's. `read_wheel_raw` finds palmas-gpadc by
+`name` under `/sys/bus/iio/devices`.
+
+Ranges set by ear (NEXT 4.15; flow in `ui.md` "Setting a range by ear"): `RangeSetting` holds the two steps and
+their limits; `RangeByEarTest` checks that any key sequence ends in a pair the helper takes. The audio side, all
+as the user:
+
+- **Mixer:** card `L15` (`hw:CARD=L15`, as in the daemon's `CARD`), not the default card (the HDMI encoder is
+  card 0). By full name: `amixer -c L15 cget name='Handsfree Playback Volume'`, `cset ... <step>`. The user is in
+  `audio` and `/dev/snd/controlC*` are `root:audio 0660`, so no helper is needed (checked 2026-11-14).
+- **Jack:** `amixer -c L15 cget name='Headset Stereophone Jack'` reads `values=on` with headphones in (read-only
+  control). `Headset Mic Jack` is the mic.
+- **PulseAudio:** the codec's sink is `aess` (card `alsa_card.L15`), ports `pyra-speaker` and
+  `pyra-headphones`; the page finds it by those ports in `pactl -f json list sinks` (pactl 17). The image loads
+  `module-switch-on-port-available`, yet the active port has been seen on `pyra-speaker` with headphones in and
+  the codec's Headset route Off, so the page sets the port itself for the step. The sink volume is saved as raw
+  per-channel values and put back with `pactl set-sink-volume aess <v1> <v2>`.
+- **Loop:** `paplay --device=aess`, restarted on each clean exit (paplay has no loop option); a failed exit
+  cancels the step.
+- On the PC, `PYRA_SETTINGS_AUDIO` puts a stand-in in front of every amixer, pactl and paplay call
+  (`tests/fakeaudio.py`, `docs/testing.md`).
 
 ## On the Pyra (NEXT 4.10, 2026-11-14)
 
@@ -171,4 +190,5 @@ pyra-settings 0.9 (no Depends yet in that build) on fork 0.38+pyra3, fix 12 undo
   reading follows the wheel live.
 - The Quietest/Loudest presets work but the owner found them unusable by ear; replaced by a guided range
   calibration with music (NEXT 4.15, `ui.md` "Replacing the preset rows").
-- amixer's simple control names drop "Volume": `amixer sget 'Handsfree Playback'`, `'Headset Playback'`.
+- amixer's simple controls are on card `L15` and named `Handsfree` and `Headset` (`amixer -c L15 sget Handsfree`);
+  without `-c L15` amixer looks at the HDMI card and finds neither.
