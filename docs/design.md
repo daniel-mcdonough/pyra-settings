@@ -119,10 +119,51 @@ MATE covers. Work items: NEXT 4.x.
 |---|---|---|
 | Nubs: what each axis does, clicks, sensitivity, deadzones | `/etc/pyrainput.cfg`, root daemon funkeymonkey-pyrainput, `systemctl reload pyrainput` | Done: helper `set-nubs` (`nubs.md`); profiles out of scope. GUI after the layout |
 | Screen dimming: depth and delay | Depth `PYRA_DIM_PERCENT` in pyra-idle-dim's unit (hard-coded); delay `org.mate.session idle-delay` | pyra-backlight reads the depth from a config file (NEXT 4.2) |
-| Keyboard light: default level, idle dimming | `pyra::kbd_backlight` LED; systemd-backlight restores the last level | Decide the meaning of a default level; idle dim in pyra-idle-dim (NEXT 4.3) |
+| Keyboard light: level at login, off when idle | `pyra::kbd_backlight` LED; pyra-idle-dim with a per-user config file (below) | Decided (4.3); pyra-backlight change (NEXT 4.16), then the page's layout in `ui.md` (NEXT 4.17) |
 | Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`, `hsrange`), root daemon `pyra_volumed`, helper `set-volume` (`docs/volume-wheel.md`) | Helper done (4.4); a daemon that reads the file (pyra-hacks fork 0.38+pyra2 or later, not fix 12's), check on the Pyra (4.10), page built (4.11, `ui.md` "Volume wheel"), the fork's flutter fixed in 0.38+pyra3 (4.12); page on the Pyra next (4.13) |
 
 The keyboard light and screen dim rows above are superseded by this table.
+
+### Keyboard light (owner, 2026-11-14, NEXT 4.3)
+
+**The light today.** `/sys/class/leds/pyra::kbd_backlight` on the m4-kbdled kernel (leds-pwm on `pwm8`, linear
+0-100, 0 is off, no default trigger). The Fn keys (`pyra-kbdlight.sh`, image fix 15) and the pyra-backlight applet
+step it through 0 1 2 5 10 20 40 60 100 %. systemd-backlight (`systemd-backlight@leds:pyra::kbd_backlight`, not
+configured by any fix) saves the level at shutdown and restores it about 21 s into boot; with nothing saved the
+light boots off. Then, at login on AC, mate-power-manager sets 100%, so the restore holds on battery only. Image
+fix 20 (`kbd-backlight-battery-reduce=false`) stops MATE's other resets (50% on battery, its own idle dim).
+pyra-idle-dim dims only the screen. Sources: dragonbox-pyra `docs/procedure.md` (keyboard light),
+`reports/pyra-kernel-kbd-backlight.md`.
+
+**Decisions.**
+
+- **Level at login.** One setting: "last level" (the default) or a fixed level from the nine steps. Whichever is
+  chosen is put back at every login, after MATE's 100% reset, so it holds on AC as well. With "last level" and
+  nothing recorded yet (first login), the light gets 5%.
+- **Idle.** When the session goes idle (the same `org.mate.session idle-delay` as the screen dim), the light goes
+  off; on activity it comes back to the level it had, only if it is still 0 (nobody changed it meanwhile, the
+  screen's rule). A light already at 0 is left alone. Not a user setting.
+- **Storage.** A per-user INI file, `~/.config/pyra-backlight.conf`, shared with the screen dim depth (NEXT 4.2):
+  owned by pyra-backlight, read by pyra-idle-dim, written by the app as the user. No pkexec, no root helper.
+  systemd-backlight's own save and restore stay as they are (they still decide the light before login).
+
+**Mechanism (pyra-backlight, NEXT 4.16).**
+
+- File: `[keyboard] level = last` or an integer 0-100 (the app offers only the nine steps). `[screen]` keys are
+  4.2's. A missing file or key means the defaults (`last`; the screen's current 20%); a bad value is logged and
+  treated as missing.
+- pyra-idle-dim records the light's level in `$XDG_STATE_HOME/pyra-backlight/kbd-level` (default
+  `~/.local/state/`) at each idle-off and when it stops at logout. A power cut loses at most the changes since the
+  last idle.
+- At start it reapplies the level once mate-power-manager has done its reset: it waits for `org.mate.PowerManager`
+  on the session bus, with a timeout in case MATE's power manager isn't running. Whether that name appears after
+  the 100% write is unmeasured; 4.16 checks it on the Pyra and changes the trigger if not.
+- Writes go through logind `Session.SetBrightness("leds", "pyra::kbd_backlight", v)`, as the applet's do. No LED
+  (a kernel without the m4-kbdled change) means no keyboard handling, no error.
+- It rereads the file on SIGHUP; the unit gets `ExecReload=kill -HUP $MAINPID`, and the app runs
+  `systemctl --user reload pyra-idle-dim` after a save.
+- Ticking MATE's "Reduce keyboard backlight brightness" (battery) or "Dim display when idle" (AC) hands the light
+  back to MATE, which then fights pyra-idle-dim. Not handled; the page can say so (layout, 4.17).
 
 ## Not exposed
 
