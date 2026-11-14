@@ -248,7 +248,7 @@ class ButtonRow(Row):
         super().__init__(key, label, subtitle, locked)
         self.action = action
         self.on_activate = on_activate
-        button = Gtk.Button(can_focus=False, valign=Gtk.Align.CENTER)
+        button = self.button = Gtk.Button(can_focus=False, valign=Gtk.Align.CENTER)
         inner = Gtk.Box(spacing=6)
         inner.pack_start(Gtk.Label(label=action), False, False, 0)
         inner.pack_start(Gtk.Image.new_from_icon_name("go-next-symbolic", Gtk.IconSize.MENU), False, False, 0)
@@ -269,6 +269,17 @@ class RangeRow(ButtonRow):
         super().__init__(key, label, subtitle, action, on_activate, locked=True)
         self.on_step = on_step
         self.adjusting = adjusting
+        if adjusting:
+            # The mouse: - and + beside Record, and the buttons take their own clicks; a click elsewhere on the
+            # row does nothing, so a stray tap doesn't record.
+            for text, delta in (("+", 1), ("\u2212", -1)):
+                b = Gtk.Button(label=text, can_focus=False, valign=Gtk.Align.CENTER)
+                b.get_style_context().add_class("pyra-option")
+                b.connect("clicked", lambda _b, d=delta: self.on_step(d))
+                self.box.pack_end(b, False, False, 0)
+            self.button.connect("clicked", lambda _b: self.on_activate())
+            self.widget.set_above_child(False)
+            self.on_click = None
 
     def left(self):
         if self.adjusting:

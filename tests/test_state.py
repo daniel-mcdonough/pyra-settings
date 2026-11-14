@@ -493,23 +493,30 @@ class RangeByEarTest(unittest.TestCase):
 
     def test_steps_and_limits(self):
         r = st.RangeSetting("range", 6, 29)
-        self.assertEqual(r.prompt(), "Step 1 of 2: make it as loud as you'd ever want (+6 dB)")
-        self.assertFalse(r.step(1))             # at the control's max
+        self.assertEqual(r.prompt(), "Step 1 of 2: make it as loud as you'd ever want (-20 dB)\n" + st.RANGE_HELP)
+        for _ in range(20):
+            r.step(1)
+        self.assertEqual(r.level, 29)           # stops at the control's max
+        self.assertFalse(r.step(1))
         for _ in range(40):
             r.step(-1)
         self.assertEqual(r.level, 1)            # room left for a lo below it
         r.step(3)
         self.assertFalse(r.record())
         self.assertEqual((r.stage, r.hi, r.level), ("lo", 4, 3))   # lo 6 lowered to hi - 1
-        self.assertEqual(r.prompt(), "Step 2 of 2: make it as quiet as you still want to hear (-46 dB)")
+        self.assertTrue(r.prompt().startswith("Step 2 of 2: make it as quiet as you still want to hear (-46 dB)\n"))
         self.assertFalse(r.step(1))
         r.step(-2)
         self.assertTrue(r.record())
         self.assertEqual(r.result, (1, 4))
 
-    def test_starts_at_the_current_ends(self):
+    def test_start_levels(self):
+        # Step 1 starts quiet (-20 dB, -18 dB) unless the saved hi is lower; step 2 at the saved lo.
+        self.assertEqual(st.RangeSetting("range", 6, 29).level, 16)
+        self.assertEqual(st.RangeSetting("range", 2, 10).level, 10)
+        self.assertEqual(st.RangeSetting("range", 0, 1).level, 1)
         r = st.RangeSetting("hsrange", 3, 12)
-        self.assertEqual(r.level, 12)
+        self.assertEqual(r.level, 6)
         r.record()
         self.assertEqual(r.level, 3)
 

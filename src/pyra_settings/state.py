@@ -564,6 +564,10 @@ MIXER_CONTROLS = {"range": "Handsfree Playback Volume", "hsrange": "Headset Play
 JACK_CONTROL = "Headset Stereophone Jack"
 RANGE_PORTS = {"range": "pyra-speaker", "hsrange": "pyra-headphones"}
 RANGE_DB = {"range": -52, "hsrange": -30}   # dB at step 0; every step is 2 dB
+# Step 1 starts here (-20 dB, -18 dB), or at the saved hi if that is lower, and the user turns it up: the saved
+# +6 dB was too loud on the speakers to start a step with (owner, 2026-11-14).
+RANGE_START_HI = {"range": 16, "hsrange": 6}
+RANGE_HELP = "D-pad \u25c0 \u25b6 or \u2212 + to change, A or Record to keep it, B to cancel"
 SOUND_PATH = "/usr/share/pyra-settings/sounds/volume-test.ogg"
 # For running the GUI on the PC only: a command put in front of amixer, pactl and paplay, e.g. tests/fakeaudio.py.
 AUDIO_ENV = "PYRA_SETTINGS_AUDIO"
@@ -674,7 +678,7 @@ class RangeSetting:
         self.max = VOLUMED_RANGE_MAX[key]
         self.lo, self.hi = lo, hi
         self.stage = "hi"
-        self.level = min(max(hi, 1), self.max)
+        self.level = max(1, min(hi, RANGE_START_HI[key]))
 
     def limits(self):
         # hi leaves room for a lo below it; lo stays below the hi just recorded.
@@ -704,7 +708,7 @@ class RangeSetting:
     def prompt(self):
         text = ("Step 1 of 2: make it as loud as you'd ever want" if self.stage == "hi" else
                 "Step 2 of 2: make it as quiet as you still want to hear")
-        return "%s (%s)" % (text, step_db(self.key, self.level))
+        return "%s (%s)\n%s" % (text, step_db(self.key, self.level), RANGE_HELP)
 
 
 def helper_command():

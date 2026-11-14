@@ -220,9 +220,13 @@ On the Pyra (NEXT 4.13) the owner found Quietest/Loudest presets unusable: a lis
 without sound. The ends are set by ear instead, with music playing, in place on the range row, like Calibrate.
 
 1. A on **Speaker range** (or **Headphone range**): the bundled loop starts (below), and the row reads "Step 1 of
-   2: make it as loud as you'd ever want (+6 dB)", action "Record". The level starts at the current `hi`.
-2. Left/right step the level by one mixer step (2 dB), heard at once; the subtitle's dB follows. A records `hi`.
-   Limits: 1 to the control's max (29, 15), so a `lo` below it is always possible.
+   2: make it as loud as you'd ever want (-20 dB)" with a second line "D-pad ◀ ▶ or − + to change, A or Record
+   to keep it, B to cancel", action "Record", and − and + buttons (choice-button size) before it. The level
+   starts quiet, speakers -20 dB (step 16), headphones -18 dB (step 6), or at the current `hi` if that is lower,
+   and the user turns it up (owner, 2026-11-14: starting at the built-in +6 dB was too loud on the speakers).
+2. Left/right or − / + step the level by one mixer step (2 dB), heard at once; the subtitle's dB follows. A or
+   Record records `hi`. A click elsewhere on the row does nothing. Limits: 1 to the control's max (29, 15), so a
+   `lo` below it is always possible.
 3. "Step 2 of 2: make it as quiet as you still want to hear (-40 dB)", starting at the current `lo` (lowered to
    `hi` - 1 if needed). Left/right, limits 0 to `hi` - 1. A records `lo`.
 4. The loop stops, the sound goes back as it was (below), then one password: `set-volume range=lo hi` (or
@@ -241,7 +245,8 @@ without sound. The ends are set by ear instead, with music playing, in place on 
   sink, because PulseAudio's software volume multiplies the mixer's. On save or cancel it puts back the port,
   the volume, the mute and the mixer value from before the step (pyra_volumed won't rewrite it with the wheel
   at rest).
-- **Start levels** (owner): the current ends, as above.
+- **Start levels** (owner): step 1 quiet, as above; step 2 at the current `lo`. The instruction line and the
+  − / + buttons were added after the first run on the Pyra (owner, 2026-11-14).
 - The preview is written as the user (`amixer -c L15 cset`; the user is in `audio`), not through the helper.
 - The loop: `data/sounds/volume-test.ogg`, installed in `/usr/share/pyra-settings/sounds/`, played with `paplay`
   and started again each time it ends. An upbeat electronic excerpt the owner made on a paid Suno plan and
