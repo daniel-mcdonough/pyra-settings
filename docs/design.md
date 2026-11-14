@@ -132,8 +132,8 @@ step it through 0 1 2 5 10 20 40 60 100 %. systemd-backlight (`systemd-backlight
 configured by any fix) saves the level at shutdown and restores it about 21 s into boot; with nothing saved the
 light boots off. Then, at login on AC, mate-power-manager sets 100%, so the restore holds on battery only. Image
 fix 20 (`kbd-backlight-battery-reduce=false`) stops MATE's other resets (50% on battery, its own idle dim).
-pyra-idle-dim dims only the screen. Sources: dragonbox-pyra `docs/procedure.md` (keyboard light),
-`reports/pyra-kernel-kbd-backlight.md`.
+pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: dragonbox-pyra
+`docs/procedure.md` (keyboard light), `reports/pyra-kernel-kbd-backlight.md`.
 
 **Decisions.**
 
@@ -147,23 +147,38 @@ pyra-idle-dim dims only the screen. Sources: dragonbox-pyra `docs/procedure.md` 
   owned by pyra-backlight, read by pyra-idle-dim, written by the app as the user. No pkexec, no root helper.
   systemd-backlight's own save and restore stay as they are (they still decide the light before login).
 
-**Mechanism (pyra-backlight, NEXT 4.16).**
+**Mechanism (pyra-backlight 0.3, NEXT 4.16; checked on the Pyra 2026-11-14).**
 
 - File: `[keyboard] level = last` or an integer 0-100 (the app offers only the nine steps). `[screen]` keys are
   4.2's. A missing file or key means the defaults (`last`; the screen's current 20%); a bad value is logged and
   treated as missing.
 - pyra-idle-dim records the light's level in `$XDG_STATE_HOME/pyra-backlight/kbd-level` (default
-  `~/.local/state/`) at each idle-off and when it stops at logout. A power cut loses at most the changes since the
-  last idle.
+  `~/.local/state/`) at each idle-off and when it stops at logout (SIGTERM, which GDBus also raises when the
+  session bus goes away). It doesn't record a stop that comes before the login level is set, since the light may
+  then be at MATE's 100%. A power cut loses at most the changes since the last idle.
 - At start it reapplies the level once mate-power-manager has done its reset: it waits for `org.mate.PowerManager`
-  on the session bus, with a timeout in case MATE's power manager isn't running. Whether that name appears after
-  the 100% write is unmeasured; 4.16 checks it on the Pyra and changes the trigger if not.
+  on the session bus, with a 30 s timeout in case MATE's power manager isn't running. **Measured:** the name appears
+  1.2-2.0 s after pyra-idle-dim starts (about 4 s after mate-power-manager's process starts), and on AC the light
+  already reads 99 then, whatever it was at logout. So MATE's reset is done before the name appears, and nothing
+  touched the light in the 10 s after (pyra-idle-dim logs it if something does). MATE's "100%" is 99 on this LED.
+  On battery there is no reset: the light still had the level from before the logout.
+- **Started per login.** The user unit's `WantedBy=default.target` starts it only with the systemd user manager,
+  which outlives a logout while any other session is open (ssh, or the X sessions that stay "closing"), and MATE
+  never reaches `graphical-session.target`. So 0.2 was not running after such a login. 0.3 adds
+  `/etc/xdg/autostart/pyra-idle-dim.desktop`, which runs `systemctl --user restart pyra-idle-dim.service` at each
+  MATE login; masking the unit still turns it off.
+- dh_installsystemduser doesn't reload running user managers, which kept 0.2's unit (and refused the reload) after
+  the upgrade. 0.3's postinst runs `systemctl --user -M <user>@ daemon-reload` for each `/run/user/<uid>`.
 - Writes go through logind `Session.SetBrightness("leds", "pyra::kbd_backlight", v)`, as the applet's do. No LED
   (a kernel without the m4-kbdled change) means no keyboard handling, no error.
 - It rereads the file on SIGHUP; the unit gets `ExecReload=kill -HUP $MAINPID`, and the app runs
   `systemctl --user reload pyra-idle-dim` after a save.
 - Ticking MATE's "Reduce keyboard backlight brightness" (battery) or "Dim display when idle" (AC) hands the light
   back to MATE, which then fights pyra-idle-dim. Not handled; the page can say so (layout, 4.17).
+- While mate-screensaver's unlock dialog is up the session is still idle (Presence status 3), so the password is
+  typed with the keyboard light off and the screen dimmed; both come back at unlock. Owner's call (NEXT 4.19).
+- A change made while the light is off for idle is kept at wake (checked with a write of 10 during idle). An Fn
+  key can't make one: the key press wakes the session first.
 
 ## Not exposed
 
