@@ -215,8 +215,8 @@ nothing else. Otherwise:
 - After a save: "Saved" for 3 s. The helper restarts pyra_volumed, so it applies at once.
 - File unreadable (not missing): the rows stay, greyed out, no option selected; the status line's idle text says
   "Can't read the volume wheel settings: <error> (<file>)".
-- A raised `lo` makes the wheel flutter at the bottom until pyra-hacks fixes NEXT 4.12 (`volume-wheel.md`,
-  "Quirk"). The owner chose to fix the daemon rather than limit the page; the page doesn't ship before the fix.
+- A raised `lo` made the wheel flutter at the bottom with pyra-hacks 0.38+pyra2. The owner chose to fix the
+  daemon rather than limit the page: fixed in 0.38+pyra3 (`volume-wheel.md`, "Off band").
 
 ## Warnings
 
