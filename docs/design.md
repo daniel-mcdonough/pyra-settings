@@ -120,7 +120,7 @@ MATE covers. Work items: NEXT 4.x.
 | Nubs: what each axis does, clicks, sensitivity, deadzones | `/etc/pyrainput.cfg`, root daemon funkeymonkey-pyrainput, `systemctl reload pyrainput` | Done: helper `set-nubs` (`nubs.md`); profiles out of scope. GUI after the layout |
 | Screen dimming: depth and delay | Depth `PYRA_DIM_PERCENT` in pyra-idle-dim's unit (hard-coded); delay `org.mate.session idle-delay` | pyra-backlight reads the depth from a config file (NEXT 4.2) |
 | Keyboard light: default level, idle dimming | `pyra::kbd_backlight` LED; systemd-backlight restores the last level | Decide the meaning of a default level; idle dim in pyra-idle-dim (NEXT 4.3) |
-| Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`), root daemon `pyra_volumed` | A headphones option in the daemon that the sound applet also reads (NEXT 4.4) |
+| Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`, `hsrange`), root daemon `pyra_volumed`, helper `set-volume` (`docs/volume-wheel.md`) | Helper done (4.4); a daemon that reads the file (pyra-hacks fork 0.38+pyra2, not fix 12's), check on the Pyra (4.10), layout (4.11) |
 
 The keyboard light and screen dim rows above are superseded by this table.
 

@@ -7,17 +7,20 @@ pyra-settings-apply.service at boot. Commands:
     set-wake game-buttons <codes>|none   codes: a kernel bitmap list, e.g. 102-109,272-273
     set-wake lid on|off
     set-nubs <key>=<value>...            edit the nub keys of /etc/pyrainput.cfg and reload pyrainput (NEXT 4.1)
+    set-volume <key>=<value>...          edit cal, range, hsrange in /etc/pyra_volumed.conf and restart pyra_volumed
+                                         (NEXT 4.4)
     apply                                reapply the config file to sysfs
 
 set-wake writes sysfs first and the config file only if every sysfs write succeeded, so a write the kernel
 refuses changes nothing. apply never writes the config. set-nubs checks every pair before it writes anything;
-pyrainput's own file needs no boot apply, the daemon reads it at start (docs/nubs.md).
+pyrainput's own file needs no boot apply, the daemon reads it at start (docs/nubs.md). set-volume is the same for
+pyra_volumed's file (docs/volume-wheel.md).
 
 Exit codes: 0 done, 1 a write or read failed, 2 the request was refused (bad arguments, unknown device, a code
 the device doesn't have, the power button). 126 and 127 stay free for pkexec's own "dismissed" and "not
 authorized".
 
-The sysfs, config and pyrainput locations are the module constants below. Nothing from the caller (argument, environment)
+The sysfs, config, pyrainput and pyra_volumed locations are the module constants below. Nothing from the caller (argument, environment)
 can change them; only the test suite overrides them, by importing this file.
 """
 
@@ -33,6 +36,10 @@ PYRAINPUT_PATH = "/etc/pyrainput.cfg"
 # Reloads pyrainput if it runs, does nothing if it doesn't. ExecReload is SIGUSR1: the daemon resets its settings
 # and rereads the file (docs/nubs.md).
 PYRAINPUT_RELOAD = ["/usr/bin/systemctl", "try-reload-or-restart", "pyrainput.service"]
+VOLUMED_PATH = "/etc/pyra_volumed.conf"
+# pyra_volumed reads its file only at start and has no reload. try-restart leaves a stopped daemon stopped; it
+# reads the file when it next starts (docs/volume-wheel.md).
+VOLUMED_RESTART = ["/usr/bin/systemctl", "try-restart", "pyra_volumed.service"]
 
 # Device names the caller may use, mapped to their sysfs directory under SYSFS_ROOT.
 GAME_BUTTONS = "game-buttons"
@@ -392,6 +399,112 @@ def cmd_set_nubs(args):
                      % (PYRAINPUT_PATH, result.stderr.decode(errors="replace").strip()))
 
 
+# pyra_volumed.conf (docs/volume-wheel.md). The daemon reads each line with sscanf(" cal %lf ..."), " range %ld %ld"
+# and " hsrange %ld %ld": leading blanks allowed, the keyword case-sensitive, a valid later line beating an earlier
+# one, anything else ignored. The checks are the daemon's own, so it never drops what the helper wrote.
+VOLUMED_NCAL = 5
+VOLUMED_RAW_MAX = 4095   # palmas-gpadc is a 12-bit ADC
+# The top step of the control each range spans: Handsfree Playback Volume (speakers) 0..29, Headset Playback
+# Volume (headphones) 0..15. The daemon checks against the mixer's own maximum, which is these.
+VOLUMED_RANGE_MAX = {"range": 29, "hsrange": 15}
+VOLUMED_KEYS = ("cal",) + tuple(VOLUMED_RANGE_MAX)
+# Every line the daemon could read as one of the keys, however malformed: a line the helper missed could come
+# after the one it wrote and win. hsrange before range, or "hsrange" would never match.
+_VOLUMED_LINE_RE = re.compile(r"^\s*(cal|hsrange|range)(?![A-Za-z_])", re.ASCII)
+_UINT_RE = re.compile(r"^[0-9]{1,5}$", re.ASCII)
+
+
+def parse_uints(value, count):
+    words = value.split()
+    if len(words) != count or not all(_UINT_RE.match(w) for w in words):
+        raise ValueError("needs %d whole numbers: %r" % (count, value))
+    return [int(w) for w in words]
+
+
+def check_volumed_value(key, value):
+    """The file's value for key, or None for default (drop the line). Raises ValueError."""
+    if value.strip() == NUB_DEFAULT:
+        return None
+    if key == "cal":
+        c = parse_uints(value, VOLUMED_NCAL)
+        if c[0] < 1 or any(b <= a for a, b in zip(c, c[1:])) or c[-1] > VOLUMED_RAW_MAX:
+            raise ValueError("cal must be positive and rising, at most %d: %r" % (VOLUMED_RAW_MAX, value))
+        return " ".join(map(str, c))
+    lo, hi = parse_uints(value, 2)
+    if not 0 <= lo < hi <= VOLUMED_RANGE_MAX[key]:
+        raise ValueError("%s must be 0 <= lo < hi <= %d: %r" % (key, VOLUMED_RANGE_MAX[key], value))
+    return "%d %d" % (lo, hi)
+
+
+def parse_volumed_args(args):
+    """key=value arguments as an ordered {key: file value or None}. Raises Refused."""
+    if not args:
+        raise Refused("usage: set-volume <key>=<value>...")
+    changes = {}
+    for arg in args:
+        key, sep, value = arg.partition("=")
+        key = key.strip()
+        if not sep:
+            raise Refused("not key=value: %r" % arg)
+        if key not in VOLUMED_KEYS:
+            raise Refused("not a volume wheel setting: %r" % key)
+        if key in changes:
+            raise Refused("%s given twice" % key)
+        try:
+            changes[key] = check_volumed_value(key, value)
+        except ValueError as e:
+            raise Refused(str(e))
+    return changes
+
+
+def volumed_line_key(line):
+    m = _VOLUMED_LINE_RE.match(line)
+    return m.group(1) if m else None
+
+
+def edit_volumed(lines, changes):
+    """Apply changes to the file's lines (each with its newline) and return the new lines.
+
+    The first line for a changed key gets the new value in place and any later ones go, so no stale line can win;
+    default removes them all. A key not in the file goes at the end. Comments and other lines stay."""
+    out, done = [], set()
+    for line in lines:
+        key = volumed_line_key(line)
+        if key in changes:
+            if changes[key] is not None and key not in done:
+                out.append("%s %s\n" % (key, changes[key]))
+            done.add(key)
+            continue
+        out.append(line)
+    new = ["%s %s\n" % (k, v) for k, v in changes.items() if v is not None and k not in done]
+    if new and out and not out[-1].endswith("\n"):
+        out[-1] += "\n"
+    return out + new
+
+
+def cmd_set_volume(args):
+    changes = parse_volumed_args(args)
+    try:
+        with open(VOLUMED_PATH, newline="") as f:
+            lines = f.readlines()
+        mode = os.stat(VOLUMED_PATH).st_mode & 0o7777
+    except FileNotFoundError:
+        lines, mode = [], 0o644   # world-readable: pyra-sound-applet reads it too
+    except OSError as e:
+        raise Failed("cannot read %s: %s" % (VOLUMED_PATH, e.strerror))
+    new = edit_volumed(lines, changes)
+    if new != lines:
+        write_file_atomic(VOLUMED_PATH, "".join(new), mode)
+    try:
+        result = subprocess.run(VOLUMED_RESTART, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.PIPE, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise Failed("saved %s, but pyra_volumed was not restarted: %s" % (VOLUMED_PATH, e))
+    if result.returncode != 0:
+        raise Failed("saved %s, but pyra_volumed was not restarted: %s"
+                     % (VOLUMED_PATH, result.stderr.decode(errors="replace").strip()))
+
+
 def cmd_apply(args):
     """Apply every setting in the config. A missing key leaves the kernel default; one bad setting doesn't stop
     the others."""
@@ -420,13 +533,15 @@ def cmd_apply(args):
 COMMANDS = {
     "set-wake": cmd_set_wake,
     "set-nubs": cmd_set_nubs,
+    "set-volume": cmd_set_volume,
     "apply": cmd_apply,
 }
 
 
 def main(argv):
     if not argv or argv[0] not in COMMANDS:
-        log("refused: usage: pyra-settings-helper set-wake <device> <value> | set-nubs <key>=<value>... | apply")
+        log("refused: usage: pyra-settings-helper set-wake <device> <value> | set-nubs <key>=<value>... | "
+            "set-volume <key>=<value>... | apply")
         return EXIT_REFUSED
     try:
         return COMMANDS[argv[0]](argv[1:]) or EXIT_OK
