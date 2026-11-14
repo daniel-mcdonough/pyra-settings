@@ -7,7 +7,9 @@ is here; ask the owner.
 ## Status
 
 - Agreed for v1 (2026-11-12), with the owner's answers to the review below ("Decisions on the mockup").
-- v2 pages are sketched but not agreed (`design.md`, "Later candidates"). Don't build them.
+- v2 pages are sketched but not agreed (`design.md`, "Later candidates"). Don't build them, except Nubs.
+- Nubs page agreed (2026-11-14, NEXT 4.6): drafted from the row kinds below, since the mockup has no nub page,
+  and settled with the owner ("Nubs" under "Pages").
 
 ## Decisions on the mockup
 
@@ -47,6 +49,7 @@ v1 pages, in order:
 | Quick settings | `tune` | The settings you change most, in one place. |
 | Suspend & wake | `bedtime` | When the Pyra sleeps, and what wakes it up. |
 | Battery | `battery_5_bar` | What happens when the battery runs low. |
+| Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
 
 ## Page area
 
@@ -116,6 +119,55 @@ present is hidden.
 1. Choice: **When the battery is critically low**, one option: Shut down. Subtitle "Hibernate isn't supported,
    and suspending would keep draining the battery." Another value set in MATE shows as "Custom", and picking Shut
    down fixes it.
+
+### Nubs
+
+Not in the mockup (it has only the "Nub clicks" wake switch). Drafted for NEXT 4.6 from the row kinds above and
+agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every row but the info row goes through
+`set-nubs`, so each has the lock.
+
+1. Info, only when the file has a `profile.current` line: **A game's nub settings are loaded**, value the
+   profile's file name (`profile.N`'s value, base name), subtitle "They override this page until the game runs
+   pyrainputctl no-overload." `pyrainputctl overload` is meant for dbp game packages; a game that skips `no-overload` leaves the
+   lines in place (`nubs.md`). A profile loaded from command mode (Fn+Pyra, digit) isn't in the file and isn't
+   shown.
+2. Header **Left nub**.
+3. Choice **Moves**: Pointer / Scroll / Scroll & click / Gamepad only.
+
+   | Option | `x` | `y` |
+   |---|---|---|
+   | Pointer | `mouse_x` | `mouse_y` |
+   | Scroll | `scroll_x` | `scroll_y` |
+   | Scroll & click | `mouse_btn` | `scroll_y` |
+   | Gamepad only | none | none |
+
+   "Gamepad only": the mode keys drive only the mouse device; the gamepad gets the axes whatever they say
+   (`gamepad.export`, on by default).
+4. Choice **Click**: Left click / Middle click / Right click / Gamepad (`mouse_left`, `mouse_middle`,
+   `mouse_right`, and `nub_click_left` for the left nub, `nub_click_right` for the right).
+5. Button **Left nub defaults**, subtitle "Pointer, left click", action "Reset": the nub's three keys to
+   `default`.
+6. Header **Right nub**, then the same three rows for `nubs.right.*`; the button's subtitle "Scroll & click,
+   right click".
+7. Header **Speed**.
+8. Choice **Pointer speed**: Slow 40 / Normal 75 / Fast 150 / Very fast 300 (`mouse.sensitivity`).
+9. Choice **Scroll speed**: Slow 40 / Normal 75 / Fast 150 (`mouse.wheel.sensitivity`).
+10. Choice **Pointer deadzone**, subtitle "Raise it if the pointer drifts": Small 25 / Normal 50 / Large 80
+    (`mouse.deadzone`).
+11. Button **Speed defaults**, subtitle "Also the scroll, click and gamepad deadzones", action "Reset": the
+    three keys above and `nubs.deadzone`, `mouse.wheel.deadzone`, `mouse.click.deadzone` to `default`. Those
+    three have no row; this is the only way the app undoes them.
+
+- The labels shown on the buttons are the words only (Slow, Normal, ...); the numbers are what is written.
+  Normal is the daemon's built-in value. The preset numbers are a first guess: the owner may want a slider row
+  instead (2026-11-14), a row kind this file doesn't have yet.
+- The page reads `/etc/pyrainput.cfg` the way the daemon does: last line for a key wins, keys lowercased,
+  lines with leading space and comments ignored, a missing key or a missing file = the built-in value. A value
+  no option matches shows as "Custom" in the subtitle; picking an option writes only that row's keys.
+- A choice writes the option's value (Normal writes 75, not `default`); only the Reset buttons remove keys.
+- After a save: "Saved" for 3 s. The daemon reloads, so it applies on the next nub movement, not at a suspend.
+- File unreadable (not missing): the rows stay, greyed out, no option selected; the status line's idle text says "Can't read the
+  nub settings: <error> (<file>)", as for sysfs.
 
 ## Warnings
 

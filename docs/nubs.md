@@ -48,6 +48,10 @@ setting compares that raw value with a deadzone.
 | `mouse.wheel.sensitivity` | int | 75 | Scroll: `(value - dz) * sens / 100` hi-res units per 16 ms, 120 per notch |
 | `mouse.click.deadzone` | int | 100 | `mouse_btn` mode: past -dz is a left click, past +dz a right click |
 
+The mode keys only steer the mouse device. The gamepad device gets every nub axis as ABS_X/Y (left) and
+ABS_RX/RY (right) whatever the modes say, past `nubs.deadzone`, while `gamepad.export` is on (the default;
+`pyrainput.cpp`). So a nub with both axis keys empty still works as a gamepad stick.
+
 The daemon takes any int (negative inverts motion or makes a deadzone always open). The helper's ranges:
 deadzones 0-255 (256 or more would switch the axis off for good), sensitivities 1-1000. The README's
 `mouse.sensitivity = 40` and `mouse.deadzone = 20` are examples, not defaults; the code's defaults are above,
@@ -72,8 +76,9 @@ Quirks in 0.1.19, harmless for a settings app but visible when tuning:
 
 `profile.current = N` loads the file at `profile.N` at the point the line is read. Lines below it override the
 profile; lines above it are overridden by it. `pyrainputctl overload <file>` (passwordless for the sudo group,
-via `/etc/sudoers.d/pyrainput`, for dbp game packages) deletes and appends `profile.9 = <file>` and
-`profile.current = 9` at the end of the file. `no-overload` deletes both. So a game's nub config wins over the
+via `/etc/sudoers.d/pyrainput`, for dbp game packages, whose README lists `overload` and `no-overload` as their "command lines"; which games call them is unchecked) deletes and appends `profile.9 = <file>` and
+`profile.current = 9` at the end of the file. `no-overload` deletes both; a game that crashes before it runs
+leaves them, and its profile then wins until something removes them. So a game's nub config wins over the
 user's while it is loaded, and the helper keeps it that way: a key not yet in the file goes **above** the first
 `profile.current` line. `pyrainputctl`'s `sed -ie` leaves a stray `/etc/pyrainput.cfge` backup each time.
 
@@ -106,7 +111,8 @@ produces events, so neither matters for it. The image's `ExecStartPost` drop-in 
 - No entry in `pyra-settings.conf` and no boot apply: the daemon reads its own file at start.
 - The path and the reload command are module constants (`PYRAINPUT_PATH`, `PYRAINPUT_RELOAD`) only tests patch.
 
-The GUI (later) can read the file itself: it is world-readable.
+The GUI's Nubs page (NEXT 4.6, `ui.md` "Nubs") reads the file itself (it is world-readable) with the same rules
+as the daemon, and rereads it each time the page is opened.
 
 ## Checked on the Pyra (0.6, 2026-11-14)
 

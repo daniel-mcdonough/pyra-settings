@@ -4,7 +4,8 @@ sysfs and config roots pointed at a fake tree (docs/testing.md).
     PYRA_SETTINGS_HELPER="python3 tests/fakehelper.py <sysfs> <config>" PYRA_SETTINGS_SYSFS=<sysfs> ...
 
 FAKEHELPER_EXIT=126 (or 127, ...) makes it exit with that code and change nothing, to try the GUI's handling of
-a dismissed password or a refusal.
+a dismissed password or a refusal. FAKEHELPER_PYRAINPUT=<file> points set-nubs at a fake pyrainput.cfg (the GUI's
+PYRA_SETTINGS_PYRAINPUT) and skips the pyrainput reload.
 """
 
 import os
@@ -22,6 +23,9 @@ def main(argv):
         return int(forced)
     helper = load_helper()
     helper.SYSFS_ROOT, helper.CONFIG_PATH = argv[0], argv[1]
+    pyrainput = os.environ.get("FAKEHELPER_PYRAINPUT")
+    if pyrainput:
+        helper.PYRAINPUT_PATH, helper.PYRAINPUT_RELOAD = pyrainput, ["true"]
     return helper.main(argv[2:])
 
 

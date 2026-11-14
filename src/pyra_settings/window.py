@@ -1,4 +1,4 @@
-"""The Pyra Settings window (NEXT 1.3): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
+"""The Pyra Settings window (NEXT 1.3, Nubs 4.6): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
 
 The app keeps its own focus (sidebar or a page row) instead of GTK's, because the Pyra's A, B, Y and X buttons
 are Home, End, PgUp and PgDn, which GTK widgets would take. No widget can take keyboard focus.
@@ -52,7 +52,9 @@ PAGES = (
     ("quick", "Quick settings", "preferences-system-symbolic", "The settings you change most, in one place."),
     ("wake", "Suspend & wake", "pyra-settings-suspend-symbolic", "When the Pyra sleeps, and what wakes it up."),
     ("battery", "Battery", "battery-good-symbolic", "What happens when the battery runs low."),
+    ("nubs", "Nubs", "input-mouse-symbolic", "What the nubs do, and how fast they move."),
 )
+NUBS_PAGE = 3
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
 SOURCE_ICONS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "icons")
@@ -226,8 +228,8 @@ class ButtonRow(Row):
     focusable = True
     kind = "button"
 
-    def __init__(self, key, label, subtitle, action, on_activate):
-        super().__init__(key, label, subtitle)
+    def __init__(self, key, label, subtitle, action, on_activate, locked=False):
+        super().__init__(key, label, subtitle, locked)
         self.action = action
         self.on_activate = on_activate
         button = Gtk.Button(can_focus=False, valign=Gtk.Align.CENTER)
@@ -295,7 +297,10 @@ class PyraSettingsWindow(Gtk.Window):
         self.settings = self._open_settings()
         self.wake = None
         self.wake_error = None
+        self.nubs = None
+        self.nub_error = None
         self.busy = False
+        self.saved = st.SAVED_WAKE
         self.page = 0
         self.in_page = False
         self.row_index = 0
@@ -343,6 +348,7 @@ class PyraSettingsWindow(Gtk.Window):
         if self.settings:
             self.settings.connect("changed", lambda *_: self.rebuild())
         self.read_wake()
+        self.read_nubs()
         self.rebuild()
         self._clear_status()
         self.maximize()
@@ -364,6 +370,16 @@ class PyraSettingsWindow(Gtk.Window):
         except (OSError, ValueError) as e:
             self.wake, self.wake_error = None, st.wake_error_text(e)
 
+    def read_nubs(self):
+        """Read /etc/pyrainput.cfg; True if what the page shows changed."""
+        old = (self.nubs.values, self.nubs.profile) if self.nubs else None
+        try:
+            self.nubs = st.read_nubs()
+            self.nub_error = None
+        except OSError as e:
+            self.nubs, self.nub_error = None, st.nub_error_text(e)
+        return old != ((self.nubs.values, self.nubs.profile) if self.nubs else None)
+
     def _get(self, key):
         return self.settings.get_string(key)
 
@@ -377,8 +393,8 @@ class PyraSettingsWindow(Gtk.Window):
 
     def set_wake_codes(self, codes):
         if self.wake.has_0053:
-            self.run_helper(st.game_buttons_argv(codes), st.WakeState(True, self.wake.keys, codes,
-                                                                      self.wake.lid_wake))
+            self.run_helper(st.game_buttons_argv(codes),
+                            wake=st.WakeState(True, self.wake.keys, codes, self.wake.lid_wake))
         else:
             self.set_game_wake(bool(codes))
 
@@ -386,14 +402,19 @@ class PyraSettingsWindow(Gtk.Window):
         # Without 0053 the helper turns power/wakeup on for any code list; all of keys says what it means.
         codes = self.wake.keys if on else frozenset()
         self.run_helper(st.game_buttons_argv(codes),
-                        st.WakeState(self.wake.has_0053, self.wake.keys, codes, self.wake.lid_wake))
+                        wake=st.WakeState(self.wake.has_0053, self.wake.keys, codes, self.wake.lid_wake))
 
     def set_lid_wake(self, on):
-        self.run_helper(st.lid_argv(on), st.WakeState(self.wake.has_0053, self.wake.keys, self.wake.wake, on))
+        self.run_helper(st.lid_argv(on),
+                        wake=st.WakeState(self.wake.has_0053, self.wake.keys, self.wake.wake, on))
 
-    def run_helper(self, argv, pending):
+    def set_nubs(self, changes):
+        """set-nubs; the daemon reloads, so it applies at once, not at the next suspend."""
+        self.run_helper(st.nubs_argv(changes), saved=st.SAVED, nubs=self.nubs.with_values(changes))
+
+    def run_helper(self, argv, saved=st.SAVED_WAKE, wake=None, nubs=None):
         """Run the helper without blocking the window while the polkit agent asks for the password. The
-        controls show the requested value until it finishes, then sysfs again."""
+        controls show the requested value (wake or nubs) until it finishes, then sysfs and the file again."""
         if self.busy:
             return
         try:
@@ -402,7 +423,9 @@ class PyraSettingsWindow(Gtk.Window):
             self.status("Couldn't run %s: %s. Nothing changed." % (argv[0], e.message), ERROR_MS, error=True)
             return
         self.busy = True
-        self.wake = pending
+        self.saved = saved
+        self.wake = wake or self.wake
+        self.nubs = nubs or self.nubs
         self.rebuild()
         proc.communicate_utf8_async(None, None, self._helper_done)
 
@@ -413,10 +436,12 @@ class PyraSettingsWindow(Gtk.Window):
             err = e.message
         code = proc.get_exit_status() if proc.get_if_exited() else -1
         self.busy = False
-        ok, message = st.helper_message(code, err)
+        ok, message = st.helper_message(code, err, self.saved)
         self.read_wake()
+        self.read_nubs()
         self.rebuild()
-        self.status(message, SAVED_WAKE_MS if ok else ERROR_MS, error=not ok)
+        ms = (SAVED_WAKE_MS if self.saved == st.SAVED_WAKE else SAVED_MS) if ok else ERROR_MS
+        self.status(message, ms, error=not ok)
 
     # Pages
 
@@ -424,7 +449,7 @@ class PyraSettingsWindow(Gtk.Window):
         focused = self._focused_row()
         focused_key = focused.key if focused else None
         self.rows = {}
-        for i, build in enumerate((self._quick_rows, self._wake_rows, self._battery_rows)):
+        for i, build in enumerate((self._quick_rows, self._wake_rows, self._battery_rows, self._nub_rows)):
             box = self.page_boxes[i]
             for child in box.get_children():
                 box.remove(child)
@@ -522,6 +547,52 @@ class PyraSettingsWindow(Gtk.Window):
                           lambda v: self.set_gsettings((st.CRITICAL_KEY,), v), self._focus_row,
                           sensitive=bool(self.settings))]
 
+    def _nub_rows(self):
+        n = self.nubs
+        # File unreadable: the rows stay, greyed out, with no option selected; the status line says why.
+        sensitive = n is not None and not self.busy
+
+        def sub(current, base=""):
+            if n is None or current:
+                return base
+            return "Custom. " + base if base else "Custom"
+        rows = []
+        if n and n.profile:
+            rows.append(InfoRow("nub-profile", "A game's nub settings are loaded", n.profile,
+                                "They override this page until the game runs pyrainputctl no-overload."))
+        resets = {"left": "Pointer, left click", "right": "Scroll & click, right click"}
+        for side in st.NUB_SIDES:
+            title = side.capitalize() + " nub"
+            move = st.current_move(n, side) if n else None
+            click = st.current_click(n, side) if n else None
+            rows += [
+                HeaderRow("h-" + side, title),
+                ChoiceRow(side + "-move", "Moves", sub(move), st.MOVE_OPTIONS, move,
+                          lambda o, side=side: self.set_nubs(st.move_changes(side, o)), self._focus_row,
+                          locked=True, sensitive=sensitive),
+                ChoiceRow(side + "-click", "Click", sub(click), st.CLICK_OPTIONS, click,
+                          lambda o, side=side: self.set_nubs(st.click_changes(side, o)), self._focus_row,
+                          locked=True, sensitive=sensitive),
+                self._reset_row(side, title + " defaults", resets[side], sensitive),
+            ]
+        rows.append(HeaderRow("h-speed", "Speed"))
+        for key, label, subtitle, options in st.SPEED_ROWS:
+            current = st.current_speed(n, key, options) if n else None
+            rows.append(ChoiceRow(key, label, sub(current, subtitle), options, current,
+                                  lambda v, key=key: self.set_nubs({key: v}), self._focus_row,
+                                  locked=True, sensitive=sensitive))
+        rows.append(self._reset_row("speed", "Speed defaults", "Also the scroll, click and gamepad deadzones",
+                                    sensitive))
+        return rows
+
+    def _reset_row(self, section, label, subtitle, sensitive):
+        def reset():
+            if sensitive:
+                self.set_nubs(st.reset_changes(section))
+        row = ButtonRow("reset-" + section, label, subtitle, "Reset", reset, locked=True)
+        row.box.set_sensitive(sensitive)
+        return row
+
     # Focus and navigation
 
     def _page_rows(self):
@@ -565,6 +636,11 @@ class PyraSettingsWindow(Gtk.Window):
 
     def _go_page(self, page, in_page):
         self.page = page % len(PAGES)
+        if self.page == NUBS_PAGE and not self.busy and self.read_nubs():
+            # pyrainputctl (a game) or an editor may have changed the file since the last read.
+            self.rebuild()
+            if self.status_timer is None:
+                self._clear_status()
         self.in_page = in_page and bool(self._page_rows())
         self.row_index = 0
         self.scrolled[self.page].get_vadjustment().set_value(0)
@@ -678,8 +754,9 @@ class PyraSettingsWindow(Gtk.Window):
     def _clear_status(self):
         """Back to the idle line: empty, or the sysfs error, which stays while it lasts."""
         self.status_timer = None
-        if self.wake_error:
-            self.status_label.set_text(self.wake_error)
+        errors = [e for e in (self.wake_error, self.nub_error) if e]
+        if errors:
+            self.status_label.set_text("; ".join(errors))
             self.status_icon.set_from_icon_name("dialog-warning-symbolic", Gtk.IconSize.MENU)
         else:
             self.status_label.set_text("")

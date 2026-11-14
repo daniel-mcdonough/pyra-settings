@@ -1,3 +1,11 @@
+pyra-settings (0.7) trixie; urgency=medium
+
+  * GUI: Nubs page (what each nub's movement and click do, pointer and
+    scroll speed, pointer deadzone, per-section resets), reading
+    /etc/pyrainput.cfg and saving through set-nubs (NEXT 4.6).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sat, 14 Nov 2026 12:00:00 +0000
+
 pyra-settings (0.6) trixie; urgency=medium
 
   * Helper: set-nubs edits /etc/pyrainput.cfg (nub modes, deadzones,

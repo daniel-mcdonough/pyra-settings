@@ -22,6 +22,10 @@
   `<cfg>/glib-2.0/settings/keyfile`, which can be edited before a run to set up "Custom" values. `tests/fakehelper.py` imports the real helper and points it at
   `<sys>` and `<conf>`; `FAKEHELPER_EXIT=126` (or 127, 1, 2) makes it fail without changing anything.
   An empty directory as `<sys>` shows the unreadable-sysfs state.
+- Nubs page on the PC: add `PYRA_SETTINGS_PYRAINPUT=<cfg file>` (what the GUI reads) and
+  `FAKEHELPER_PYRAINPUT=<same file>` (where the fake helper's `set-nubs` writes; it skips the pyrainput reload).
+  A missing file shows the built-in values, a `chmod 0` one the unreadable state, and appending
+  `profile.9 = <path>` / `profile.current = 9` the game-profile info row (it is reread on opening the page).
 - Headless: `Xvfb :91 -screen 0 1280x720x24`, `DISPLAY=:91 GDK_BACKEND=x11` (on a Wayland desktop GTK
   otherwise opens the window there, not on the Xvfb), `xdotool key Home Down Left` for the controller
   keys (A = Home, B = End, Y/X = Page_Up/Page_Down), `import -window root -resize 50%` for screenshots.

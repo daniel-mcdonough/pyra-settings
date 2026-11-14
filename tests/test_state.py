@@ -190,6 +190,124 @@ class HelperTest(unittest.TestCase):
         self.assertFalse(st.helper_message(5)[0])
         self.assertIn("exit 5", st.helper_message(5)[1])
 
+    def test_nub_messages(self):
+        self.assertEqual(st.helper_message(0, saved=st.SAVED), (True, "Saved"))
+        ok, msg = st.helper_message(1, "pyra-settings-helper: saved /etc/pyrainput.cfg, but pyrainput was not "
+                                       "reloaded: boom\n")
+        self.assertEqual((ok, msg), (False, "Saved /etc/pyrainput.cfg, but pyrainput was not reloaded: boom."))
+
+
+# The release image's file (docs/nubs.md): only the keyboard light scripts, every nub key at its default.
+IMAGE_CFG = """scripts.brightness.fn = /usr/local/sbin/pyra-kbdlight.sh up
+scripts.brightness.fnshift = /usr/local/sbin/pyra-kbdlight.sh down
+"""
+IMAGE_LINES = IMAGE_CFG.splitlines(keepends=True)
+
+
+class NubsTest(unittest.TestCase):
+    """The Nubs page's reading and changes (NEXT 4.6, docs/ui.md "Nubs")."""
+
+    def setUp(self):
+        os.environ.pop(st.HELPER_ENV, None)
+
+    def test_image_file_is_all_defaults(self):
+        n = st.parse_pyrainput(IMAGE_CFG)
+        self.assertEqual(n.values, st.NUB_DEFAULTS)
+        self.assertIsNone(n.profile)
+        self.assertEqual(st.current_move(n, "left"), "pointer")
+        self.assertEqual(st.current_move(n, "right"), "scroll-click")
+        self.assertEqual(st.current_click(n, "left"), "mouse_left")
+        self.assertEqual(st.current_click(n, "right"), "mouse_right")
+        for key, _label, _sub, options in st.SPEED_ROWS:
+            self.assertEqual(dict(options)[st.current_speed(n, key, options)], "Normal", key)
+
+    def test_missing_file_is_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(st.read_nubs(os.path.join(tmp, "none.cfg")).values, st.NUB_DEFAULTS)
+
+    def test_unreadable_file_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(OSError) as cm:
+                st.read_nubs(tmp)  # a directory
+            self.assertIn("Can't read the nub settings", st.nub_error_text(cm.exception))
+
+    def test_parses_like_the_daemon(self):
+        n = st.parse_pyrainput("mouse.sensitivity = 40\n"
+                               "# mouse.sensitivity = 150\n"
+                               " mouse.sensitivity = 300\n"   # leading space: the daemon skips it
+                               "MOUSE.Sensitivity=150\n"      # keys are case-insensitive; last wins
+                               "nubs.left.x =   scroll_x \n"
+                               "nubs.left.y = scroll_y\n"
+                               "nubs.right.click = nub_click_right\n")
+        self.assertEqual(n.values["mouse.sensitivity"], "150")
+        self.assertEqual(st.current_move(n, "left"), "scroll")
+        self.assertEqual(st.current_click(n, "right"), "gamepad")
+
+    def test_custom_values(self):
+        n = st.parse_pyrainput("nubs.left.x = mouse_y\nnubs.left.y = mouse_x\nmouse.sensitivity = 90\n"
+                               "nubs.right.click = nub_click_left\nnubs.left.click = mouse_left mouse_right\n")
+        self.assertIsNone(st.current_move(n, "left"))
+        self.assertIsNone(st.current_click(n, "right"))  # the other nub's gamepad button
+        self.assertIsNone(st.current_click(n, "left"))
+        self.assertIsNone(st.current_speed(n, "mouse.sensitivity", st.SPEED_ROWS[0][3]))
+
+    def test_empty_modes_are_gamepad_only(self):
+        n = st.parse_pyrainput("nubs.right.x =\nnubs.right.y = \n")
+        self.assertEqual(st.current_move(n, "right"), "gamepad")
+
+    def test_speed_read_as_stoi(self):
+        options = st.SPEED_ROWS[0][3]
+        for text in ("75", " 075", "75abc"):
+            n = st.parse_pyrainput("mouse.sensitivity = %s\n" % text)
+            self.assertEqual(st.current_speed(n, "mouse.sensitivity", options), "75", text)
+        n = st.parse_pyrainput("mouse.sensitivity = fast\n")
+        self.assertIsNone(st.current_speed(n, "mouse.sensitivity", options))
+
+    def test_profile(self):
+        n = st.parse_pyrainput(IMAGE_CFG + "profile.9 = /usr/share/games/x/pyrainput.cfg\nprofile.current = 9\n")
+        self.assertEqual(n.profile, "pyrainput.cfg")
+        self.assertEqual(st.parse_pyrainput("profile.current = 3\n").profile, "profile 3")
+        self.assertIsNone(st.parse_pyrainput("profile.9 = /x.cfg\n").profile)
+
+    def test_changes_and_argv(self):
+        self.assertEqual(st.move_changes("right", "gamepad"), {"nubs.right.x": "", "nubs.right.y": ""})
+        self.assertEqual(st.click_changes("left", "gamepad"), {"nubs.left.click": "nub_click_left"})
+        self.assertEqual(st.click_changes("right", "mouse_middle"), {"nubs.right.click": "mouse_middle"})
+        self.assertEqual(st.nubs_argv(st.move_changes("left", "gamepad")),
+                         ["pkexec", st.HELPER, "set-nubs", "nubs.left.x=none", "nubs.left.y=none"])
+        self.assertEqual(st.nubs_argv(st.reset_changes("left"))[3:],
+                         ["nubs.left.x=default", "nubs.left.y=default", "nubs.left.click=default"])
+        self.assertEqual(set(st.reset_changes("speed")) | set(st.reset_changes("left"))
+                         | set(st.reset_changes("right")), set(st.NUB_DEFAULTS))
+
+    def test_pending_state(self):
+        n = st.parse_pyrainput("mouse.sensitivity = 300\n").with_values(
+            {"mouse.sensitivity": None, "nubs.left.x": "scroll_x"})
+        self.assertEqual(n.values["mouse.sensitivity"], "75")
+        self.assertEqual(n.values["nubs.left.x"], "scroll_x")
+
+    def test_every_change_passes_the_helper(self):
+        """Each argv the page can build gets through the real helper's checks, and the result reads back as the
+        option that was picked."""
+        from test_helper import helper
+        changes = [st.reset_changes(s) for s in st.NUB_SECTION_KEYS]
+        for side in st.NUB_SIDES:
+            changes += [st.move_changes(side, o) for o, _ in st.MOVE_OPTIONS]
+            changes += [st.click_changes(side, o) for o, _ in st.CLICK_OPTIONS]
+        for key, _label, _sub, options in st.SPEED_ROWS:
+            changes += [{key: v} for v, _ in options]
+        for change in changes:
+            parsed = helper.parse_nub_args(st.nubs_argv(change)[3:])
+            text = "".join(helper.edit_pyrainput(IMAGE_LINES, parsed))
+            n = st.parse_pyrainput(text)
+            for key, value in change.items():
+                self.assertEqual(n.values[key], st.NUB_DEFAULTS[key] if value is None else value, change)
+        for side in st.NUB_SIDES:
+            for option, _ in st.MOVE_OPTIONS:
+                text = "".join(helper.edit_pyrainput(
+                    IMAGE_LINES, helper.parse_nub_args(st.nubs_argv(st.move_changes(side, option))[3:])))
+                self.assertEqual(st.current_move(st.parse_pyrainput(text), side), option)
+
 
 if __name__ == "__main__":
     unittest.main()
