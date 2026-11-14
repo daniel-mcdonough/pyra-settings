@@ -92,4 +92,38 @@ built-in value applies.
 - The path and the restart command are module constants (`VOLUMED_PATH`, `VOLUMED_RESTART`). Tests:
   `tests/test_volumed.py`.
 
-Not yet checked on the Pyra (NEXT 4.10).
+## On the Pyra (NEXT 4.10, 2026-11-14)
+
+Checked on the running unit (kernel without 0053, pyra-settings 0.8). The helper was run with `sudo` over ssh,
+because pkexec there has no polkit agent; the pkexec path itself was already checked with the other commands.
+
+- **Check, fix 12 in place** (stock pyra-hacks 0.38): `overridden`. The real line, `systemctl show --value -p
+  ExecStart pyra_volumed.service`:
+  `{ path=/usr/local/sbin/pyra-volumed-run ; argv[]=/usr/local/sbin/pyra-volumed-run ; ignore_errors=no ;
+  start_time=[...] ; stop_time=[n/a] ; pid=8021 ; code=(null) ; status=0/0 }`. After a `daemon-reload` the
+  runtime fields read `start_time=[n/a]`, `pid=0` while the daemon still runs. The check reads only `path=`.
+- **Check, fork 0.38+pyra2 installed, `install.sh --undo` run:** `ok`. ExecStart `{ path=/usr/bin/pyra_volumed ;
+  argv[]=/usr/bin/pyra_volumed ; ... }`, `dpkg --verify pyra-hacks` clean. The unit keeps the fork with fix 12
+  undone.
+- **`range=10 29`**, wheel just above the bottom (raw 27): speakers went from step 8 to 11, the owner heard it get
+  louder, and the headphones stayed put. **`hsrange=4 15`**, headphones in: from step 0 to 5. **`range=default
+  hsrange=default`**: the file is left empty (0644). At the same wheel position the steps were the same as before
+  (8 and 1), and the owner heard both outputs back to normal. The journal had only systemd's stop and start lines,
+  with no "ignored".
+- The owner found the headphones' low end fine with the built-in `hsrange 0 15`. Only the speakers need their
+  bottom raised.
+- `in_voltage2_raw` reads as the user (`pyra`, no sudo).
+
+## Quirk: the wheel flutters at the off threshold when lo > 0 (fork bug)
+
+`position()` returns 0 for readings at or below `RAW_OFF` (`1.25 * cal[0]`, 20 with the built-in `cal`), and
+`lo + travel * (hi - lo)` above it. So the step jumps from 0 to `lo` at the threshold. The hysteresis (0.3 of a
+step past the edge, `HYSTERESIS`) only damps small moves. The ADC wanders by about ±2 raw here, so a wheel resting
+at the threshold flips 0 ↔ `lo` several times a second. Sampled on the Pyra with `range 10 29`, `hsrange 4 15`,
+raw 18-22: headphones 0 ↔ 4 and speakers 0 ↔ 11, and the owner heard it as stuttering. Moving the wheel off the
+threshold stops it.
+
+With `hsrange 0 15` the headphones don't jump (0 → about 0). The built-in `range 6 29` has the same jump on the
+speakers (0 ↔ 6, -52 ↔ -40 dB), which is close to silent and so went unnoticed. Every `lo` above 0 makes it worse.
+This is in pyra-hacks' `pyra_volumed.c`, not in this app. The helper still accepts any `lo` the daemon accepts.
+Fix and follow-up: NEXT 4.12.

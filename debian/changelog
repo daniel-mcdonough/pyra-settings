@@ -1,3 +1,13 @@
+pyra-settings (0.8) trixie; urgency=medium
+
+  * Helper: set-volume edits cal, range and hsrange in /etc/pyra_volumed.conf
+    and restarts pyra_volumed (NEXT 4.4).
+  * GUI logic: volumed_check tells whether the running pyra_volumed reads
+    that file (NEXT 4.9). The Nubs page's profile row is worded neutrally
+    (NEXT 4.8).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sat, 14 Nov 2026 20:00:00 +0000
+
 pyra-settings (0.7) trixie; urgency=medium
 
   * GUI: Nubs page (what each nub's movement and click do, pointer and
