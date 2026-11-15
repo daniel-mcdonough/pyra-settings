@@ -233,7 +233,7 @@ idle and puts it back on activity, only if nobody changed it meanwhile. Through 
 - **App.** The page writes `[screen] dim` as the user and runs `systemctl --user reload pyra-idle-dim`, as for
   the keyboard light. No pkexec. Layout in `ui.md` first.
 
-**Mechanism (pyra-backlight 0.4, committed, not yet released; checked on the Pyra 2026-11-14).** With no file
+**Mechanism (pyra-backlight 0.4, released 2026-11-15 as `v0.4`; checked on the Pyra 2026-11-14).** With no file
 it logs "dims to 20% of maximum". With `dim = 40` an idle (delay set to 1 min for the test) took the screen 14 -> 6
 and the wake put back 14. `dim = 0` on reload was logged and fell back to 20%. With `dim = off` the screen stayed
 at 14 through idle while the keyboard light still went off.

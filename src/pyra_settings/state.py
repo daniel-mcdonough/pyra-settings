@@ -1,18 +1,22 @@
 """What the GUI shows and asks for, without GTK: sysfs wake state, gsettings values, the nub settings, helper
-commands and their results (NEXT 1.3, 4.6, 4.11, 4.15). The rules are docs/design.md "v1 settings", docs/nubs.md and
-docs/volume-wheel.md; the presets, groups, warning, nub and volume wheel options are docs/ui.md.
+commands and their results (NEXT 1.3, 4.6, 4.11, 4.15, 4.22). The rules are docs/design.md "v1 settings", "Keyboard
+light" and "Screen dimming", docs/nubs.md and docs/volume-wheel.md; the presets, groups, warnings and options are
+docs/ui.md.
 
 The GUI reads sysfs, /etc/pyrainput.cfg and /etc/pyra_volumed.conf and never writes them. PYRA_SETTINGS_SYSFS,
 PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED and PYRA_SETTINGS_IIO point it at fake files on the PC, and
 PYRA_SETTINGS_AUDIO at a stand-in for amixer, pactl and paplay; the helper never reads any of these variables.
+The one file the GUI writes itself is the user's ~/.config/pyra-backlight.conf (PYRA_SETTINGS_BACKLIGHT on the PC).
 
 """
 
+import configparser
 import json
 import os
 import re
 import shlex
 import subprocess
+import tempfile
 from collections import namedtuple
 
 SYSFS_ROOT = os.environ.get("PYRA_SETTINGS_SYSFS", "/sys/devices/platform")
@@ -709,6 +713,178 @@ class RangeSetting:
         text = ("Step 1 of 2: make it as loud as you'd ever want" if self.stage == "hi" else
                 "Step 2 of 2: make it as quiet as you still want to hear")
         return "%s (%s)\n%s" % (text, step_db(self.key, self.level), RANGE_HELP)
+
+
+# The Display & keyboard light page (docs/ui.md "Display & keyboard light"): pyra-backlight's per-user file, which
+# pyra-idle-dim reads at start and on reload (docs/design.md "Keyboard light", "Screen dimming"). The user's own
+# file, written as the user: no helper.
+BACKLIGHT_PATH = os.environ.get("PYRA_SETTINGS_BACKLIGHT") or os.path.join(
+    os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "pyra-backlight.conf")
+BACKLIGHT_RELOAD = ["systemctl", "--user", "reload", "pyra-idle-dim"]
+# (section, key, what no key means: pyra-idle-dim's fallback)
+DIM_KEY = ("screen", "dim", "20")
+LEVEL_KEY = ("keyboard", "level", "last")
+DIM_OPTIONS = (("off", "Off"), ("10", "10 %"), ("20", "20 %"), ("40", "40 %"), ("60", "60 %"))
+# "last", then 0 and the Fn keys' eight non-zero steps.
+LEVEL_OPTIONS = (("last", "Last"), ("0", "Off"), ("1", "1"), ("2", "2"), ("5", "5"), ("10", "10"), ("20", "20"),
+                 ("40", "40"), ("60", "60"), ("100", "100 %"))
+# org.mate.power-manager booleans that bring MATE's own keyboard dim back (dragonbox-pyra fix 20). The page warns
+# while either is true, and its button sets both false.
+MATE_DIM_KEYS = ("kbd-backlight-battery-reduce", "idle-dim-ac")
+MATE_DIM_WARNING = ("MATE's power settings will undo the keyboard light level: \"Reduce keyboard backlight "
+                    "brightness\" or \"Dim display when idle\" is ticked.", "Turn off")
+SESSION_SCHEMA = "org.mate.session"
+IDLE_DELAY_KEY = "idle-delay"
+_BACKLIGHT_SECTION_RE = re.compile(r"^\s*\[([^\]]*)\]")
+_BACKLIGHT_KEY_RE = re.compile(r"^\s*([^=:\s#;][^=:]*?)\s*[=:]")
+
+
+class BacklightState:
+    """The two keys the page shows, as written in the file (lower case, numbers as ints read them), or the
+    fallback where the file has none."""
+
+    def __init__(self, dim=DIM_KEY[2], level=LEVEL_KEY[2]):
+        self.dim = dim
+        self.level = level
+
+    def __repr__(self):
+        return "BacklightState(dim=%r, level=%r)" % (self.dim, self.level)
+
+
+def _backlight_value(value):
+    value = value.strip().lower()
+    try:
+        return str(int(value))
+    except ValueError:
+        return value
+
+
+def parse_backlight(text):
+    """The file's text as a BacklightState, read with configparser as pyra-idle-dim reads it. Raises ValueError
+    for a file configparser refuses (pyra-idle-dim then uses its defaults; the page doesn't write such a file)."""
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read_string(text)
+    except configparser.Error as e:
+        raise ValueError(str(e).splitlines()[0]) from e
+    out = {}
+    for section, key, default in (DIM_KEY, LEVEL_KEY):
+        value = parser.get(section, key, fallback=None)
+        out[key] = default if value is None else _backlight_value(value)
+    return BacklightState(out["dim"], out["level"])
+
+
+def read_backlight(path=None):
+    """Read ~/.config/pyra-backlight.conf. A missing file is the fallbacks; other errors raise OSError or
+    ValueError."""
+    path = path or BACKLIGHT_PATH
+    try:
+        with open(path) as f:
+            text = f.read()
+    except FileNotFoundError:
+        text = ""
+    try:
+        return parse_backlight(text)
+    except ValueError as e:
+        raise ValueError("%s (%s)" % (e, path)) from e
+
+
+def backlight_error_text(error):
+    return "Can't read the backlight settings: %s" % _error_detail(error)
+
+
+def backlight_save_error_text(error):
+    return "Couldn't save the backlight settings: %s. Nothing changed." % _error_detail(error)
+
+
+def backlight_choice(value, options):
+    """The option a value selects, or None ("Custom")."""
+    return value if value in [o for o, _ in options] else None
+
+
+def set_ini_key(text, section, key, value):
+    """The file's text with section's key set to value. Every other line stays as it was, comments included: the
+    key's line is replaced, or a line added at the end of the section, or the section added at the end of the
+    file. The text is one configparser takes (strict, as pyra-idle-dim reads it), so the key and the section are
+    there at most once."""
+    lines = text.splitlines(True)
+    current = None
+    section_end = None    # index after the last line of the section's last run
+    key_line = None
+    for i, line in enumerate(lines):
+        m = _BACKLIGHT_SECTION_RE.match(line)
+        if m:
+            current = m.group(1).strip()
+            if current == section:
+                section_end = i + 1
+            continue
+        if current != section:
+            continue
+        if line.strip():
+            section_end = i + 1
+        m = _BACKLIGHT_KEY_RE.match(line)
+        if m and m.group(1).lower() == key.lower() and not line[:1].isspace():
+            key_line = i
+    new = "%s = %s\n" % (key, value)
+    if key_line is not None:
+        lines[key_line] = new
+    elif section_end is not None:
+        if not lines[section_end - 1].endswith("\n"):
+            lines[section_end - 1] += "\n"
+        lines.insert(section_end, new)
+    else:
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        if lines and lines[-1].strip():
+            lines.append("\n")
+        lines += ["[%s]\n" % section, new]
+    return "".join(lines)
+
+
+def write_backlight(section, key, value, path=None):
+    """Set one key in the file, keeping the rest, through a temporary file and a rename. Raises OSError or
+    ValueError (a file configparser refuses, which the page doesn't touch)."""
+    path = path or BACKLIGHT_PATH
+    try:
+        with open(path) as f:
+            text = f.read()
+    except FileNotFoundError:
+        text = ""
+    parse_backlight(text)
+    text = set_ini_key(text, section, key, value)
+    directory = os.path.dirname(os.path.abspath(path))
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".pyra-backlight.", dir=directory)
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        try:
+            os.chmod(tmp, os.stat(path).st_mode & 0o777)
+        except FileNotFoundError:
+            os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def reload_message(code):
+    """(ok, status line) after the file was written and pyra-idle-dim was asked to reload."""
+    if code == 0:
+        return True, SAVED
+    return False, "Saved, but pyra-idle-dim didn't reload. It applies when pyra-idle-dim next starts."
+
+
+def show_mate_dim_warning(values):
+    """values: the MATE_DIM_KEYS booleans, None for a schema that isn't installed."""
+    return any(values)
+
+
+def idle_delay_text(minutes):
+    return "%d min" % minutes
 
 
 def helper_command():

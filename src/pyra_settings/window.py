@@ -1,4 +1,4 @@
-"""The Pyra Settings window (NEXT 1.3, Nubs 4.6, Volume wheel 4.11 and 4.15): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
+"""The Pyra Settings window (NEXT 1.3, Nubs 4.6, Volume wheel 4.11 and 4.15, Display & keyboard light 4.22): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
 
 The app keeps its own focus (sidebar or a page row) instead of GTK's, because the Pyra's A, B, Y and X buttons
 are Home, End, PgUp and PgDn, which GTK widgets would take. No widget can take keyboard focus.
@@ -52,11 +52,14 @@ PAGES = (
     ("quick", "Quick settings", "preferences-system-symbolic", "The settings you change most, in one place."),
     ("wake", "Suspend & wake", "pyra-settings-suspend-symbolic", "When the Pyra sleeps, and what wakes it up."),
     ("battery", "Battery", "battery-good-symbolic", "What happens when the battery runs low."),
+    ("display", "Display & keyboard light", "display-brightness-symbolic",
+     "How far the screen dims when idle, and the keyboard light at login."),
     ("nubs", "Nubs", "input-mouse-symbolic", "What the nubs do, and how fast they move."),
     ("volume", "Volume wheel", "audio-volume-high-symbolic", "How the wheel sets the speaker and headphone volume."),
 )
-NUBS_PAGE = 3
-VOLUME_PAGE = 4
+DISPLAY_PAGE = 3
+NUBS_PAGE = 4
+VOLUME_PAGE = 5
 WHEEL_POLL_MS = 250
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
@@ -342,6 +345,10 @@ class PyraSettingsWindow(Gtk.Window):
                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
         self.settings = self._open_settings()
+        self.session = self._open_schema(st.SESSION_SCHEMA)
+        self.backlight = None
+        self.backlight_error = None
+        self.reload_proc = None
         self.wake = None
         self.wake_error = None
         self.nubs = None
@@ -404,9 +411,11 @@ class PyraSettingsWindow(Gtk.Window):
 
         self.connect("key-press-event", self._key)
         self.connect("destroy", self._destroyed)
-        if self.settings:
-            self.settings.connect("changed", lambda *_: self.rebuild())
+        for settings in (self.settings, self.session):
+            if settings:
+                settings.connect("changed", lambda *_: self.rebuild())
         self.read_wake()
+        self.read_backlight()
         self.read_nubs()
         # Once: a restart of the daemon doesn't change the result (docs/volume-wheel.md "The check").
         self.volumed = st.read_volumed_check()
@@ -426,6 +435,19 @@ class PyraSettingsWindow(Gtk.Window):
                   % st.POWER_SCHEMA)
             return None
         return Gio.Settings.new(st.POWER_SCHEMA)
+
+    def _open_schema(self, schema):
+        source = Gio.SettingsSchemaSource.get_default()
+        if source is None or source.lookup(schema, True) is None:
+            print("pyra-settings: schema %s not installed" % schema)
+            return None
+        return Gio.Settings.new(schema)
+
+    def _bool(self, key):
+        """A boolean of org.mate.power-manager, None if the schema or the key isn't there."""
+        if not self.settings or not self.settings.props.settings_schema.has_key(key):
+            return None
+        return self.settings.get_boolean(key)
 
     def read_wake(self):
         try:
@@ -453,6 +475,16 @@ class PyraSettingsWindow(Gtk.Window):
         except OSError as e:
             self.volume, self.volume_error = None, st.volumed_error_text(e)
         return old != (self.volume.values if self.volume else None)
+
+    def read_backlight(self):
+        """Read ~/.config/pyra-backlight.conf; True if what the page shows changed."""
+        old = (self.backlight.dim, self.backlight.level) if self.backlight else None
+        try:
+            self.backlight = st.read_backlight()
+            self.backlight_error = None
+        except (OSError, ValueError) as e:
+            self.backlight, self.backlight_error = None, st.backlight_error_text(e)
+        return old != ((self.backlight.dim, self.backlight.level) if self.backlight else None)
 
     def read_jack(self):
         """Read the headphone jack; True if it changed."""
@@ -504,6 +536,49 @@ class PyraSettingsWindow(Gtk.Window):
         """set-volume; the helper restarts pyra_volumed, so it applies at once."""
         self.run_helper(st.volume_argv(changes), saved=st.SAVED, volume=self.volume.with_values(changes))
 
+    def set_backlight(self, key, value):
+        """Write one key of the user's pyra-backlight.conf, then reload pyra-idle-dim (docs/ui.md "Display &
+        keyboard light"). The file is written either way; a failed reload only says so."""
+        section, name, _default = key
+        try:
+            st.write_backlight(section, name, value)
+        except (OSError, ValueError) as e:
+            self.read_backlight()
+            self.rebuild()
+            self.status(st.backlight_save_error_text(e), ERROR_MS, error=True)
+            return
+        self.read_backlight()
+        self.rebuild()
+        try:
+            proc = Gio.Subprocess.new(st.BACKLIGHT_RELOAD,
+                                      Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_PIPE)
+        except GLib.Error as e:
+            print("pyra-settings: %s" % e.message)
+            self.status(st.reload_message(1)[1], ERROR_MS, error=True)
+            return
+        self.reload_proc = proc
+        proc.communicate_utf8_async(None, None, self._reload_done)
+
+    def _reload_done(self, proc, result):
+        try:
+            _ok, _out, err = proc.communicate_utf8_finish(result)
+        except GLib.Error as e:
+            err = e.message
+        if proc is not self.reload_proc:
+            return    # a later save's reload reports instead
+        self.reload_proc = None
+        code = proc.get_exit_status() if proc.get_if_exited() else -1
+        ok, message = st.reload_message(code)
+        if not ok:
+            print("pyra-settings: %s: %s" % (" ".join(st.BACKLIGHT_RELOAD), (err or "").strip() or code))
+        self.status(message, SAVED_MS if ok else ERROR_MS, error=not ok)
+
+    def turn_off_mate_dim(self):
+        for key in st.MATE_DIM_KEYS:
+            if self._bool(key) is not None:
+                self.settings.set_boolean(key, False)
+        self.status(st.SAVED, SAVED_MS)
+
     def run_helper(self, argv, saved=st.SAVED_WAKE, wake=None, nubs=None, volume=None):
         """Run the helper without blocking the window while the polkit agent asks for the password. The
         controls show the requested value (wake or nubs) until it finishes, then sysfs and the file again."""
@@ -543,7 +618,8 @@ class PyraSettingsWindow(Gtk.Window):
         focused = self._focused_row()
         focused_key = focused.key if focused else None
         self.rows = {}
-        builders = (self._quick_rows, self._wake_rows, self._battery_rows, self._nub_rows, self._volume_rows)
+        builders = (self._quick_rows, self._wake_rows, self._battery_rows, self._display_rows, self._nub_rows,
+                    self._volume_rows)
         for i, build in enumerate(builders):
             box = self.page_boxes[i]
             for child in box.get_children():
@@ -641,6 +717,32 @@ class PyraSettingsWindow(Gtk.Window):
         return [ChoiceRow("critical", "When the battery is critically low", sub, st.CRITICAL_OPTIONS, current,
                           lambda v: self.set_gsettings((st.CRITICAL_KEY,), v), self._focus_row,
                           sensitive=bool(self.settings))]
+
+    def _display_rows(self):
+        b = self.backlight
+        rows = []
+        if st.show_mate_dim_warning([self._bool(k) for k in st.MATE_DIM_KEYS]):
+            text, action = st.MATE_DIM_WARNING
+            rows.append(WarningRow("display-warning", text, action, self.turn_off_mate_dim))
+        # File unreadable: the rows stay, greyed out, with no option selected; the status line says why.
+        dim = st.backlight_choice(b.dim, st.DIM_OPTIONS) if b else None
+        level = st.backlight_choice(b.level, st.LEVEL_OPTIONS) if b else None
+        custom = "" if b is None else "Custom"
+        if self.session:
+            delay = st.idle_delay_text(self.session.get_int(st.IDLE_DELAY_KEY))
+        else:
+            delay = "Not found"
+        rows += [
+            HeaderRow("h-screen", "Screen"),
+            ChoiceRow("screen-dim", "Dim when idle to", "" if dim else custom, st.DIM_OPTIONS, dim,
+                      lambda v: self.set_backlight(st.DIM_KEY, v), self._focus_row, sensitive=b is not None),
+            InfoRow("idle-delay", "Idle after", delay,
+                    "Set in MATE's Screensaver preferences. Also starts the screensaver and idle sleep."),
+            HeaderRow("h-keyboard", "Keyboard light"),
+            ChoiceRow("kbd-level", "Light at login", "" if level else custom, st.LEVEL_OPTIONS, level,
+                      lambda v: self.set_backlight(st.LEVEL_KEY, v), self._focus_row, sensitive=b is not None),
+        ]
+        return rows
 
     def _nub_rows(self):
         n = self.nubs
@@ -974,6 +1076,11 @@ class PyraSettingsWindow(Gtk.Window):
                 self._clear_status()
         if self.page == VOLUME_PAGE and not self.busy and self.read_volume():
             self.rebuild()
+        if self.page == DISPLAY_PAGE and self.read_backlight():
+            # The applet or an editor may have changed the file.
+            self.rebuild()
+            if self.status_timer is None:
+                self._clear_status()
         self.in_page = in_page and bool(self._page_rows())
         self.row_index = 0
         self.scrolled[self.page].get_vadjustment().set_value(0)
@@ -1094,7 +1201,7 @@ class PyraSettingsWindow(Gtk.Window):
     def _clear_status(self):
         """Back to the idle line: empty, or the sysfs error, which stays while it lasts."""
         self.status_timer = None
-        errors = [e for e in (self.wake_error, self.nub_error, self.volume_error) if e]
+        errors = [e for e in (self.wake_error, self.nub_error, self.volume_error, self.backlight_error) if e]
         if errors:
             self.status_label.set_text("; ".join(errors))
             self.status_icon.set_from_icon_name("dialog-warning-symbolic", Gtk.IconSize.MENU)

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The one key of org.mate.session that Pyra Settings reads, with Debian's default (10_mate-common override).
+     For running the GUI on a PC without MATE; see docs/testing.md. -->
+<schemalist>
+  <schema id="org.mate.session" path="/org/mate/desktop/session/">
+    <key name="idle-delay" type="i">
+      <default>30</default>
+    </key>
+  </schema>
+</schemalist>

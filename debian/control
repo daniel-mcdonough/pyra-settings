@@ -16,7 +16,8 @@ Depends: ${misc:Depends},
          polkitd,
          alsa-utils,
          pulseaudio-utils,
-         pyra-hacks (>= 0.38+pyra3)
+         pyra-hacks (>= 0.38+pyra3),
+         pyra-backlight (>= 0.4)
 Description: settings only the DragonBox Pyra has
  Pyra Settings is a small GTK 3 app for the Pyra's own settings. Version 1
  covers suspend and wake: which game buttons and whether the lid wake the

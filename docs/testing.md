@@ -17,8 +17,8 @@
         PYRA_SETTINGS_SYSFS=<sys> PYRA_SETTINGS_HELPER="python3 ../tests/fakehelper.py <sys> <conf>" \
         python3 -m pyra_settings
 
-  `tests/schemas/` is the three keys the app uses, trimmed from trixie's `mate-power-manager-common`, with the
-  image's defaults. The keyfile backend leaves the values in
+  `tests/schemas/` is the gsettings keys the app uses (`org.mate.power-manager` trimmed from trixie's
+  `mate-power-manager-common`, and `org.mate.session idle-delay`), with the image's defaults. The keyfile backend leaves the values in
   `<cfg>/glib-2.0/settings/keyfile`, which can be edited before a run to set up "Custom" values. `tests/fakehelper.py` imports the real helper and points it at
   `<sys>` and `<conf>`; `FAKEHELPER_EXIT=126` (or 127, 1, 2) makes it fail without changing anything.
   An empty directory as `<sys>` shows the unreadable-sysfs state.
@@ -34,6 +34,10 @@
   rows add `PYRA_SETTINGS_AUDIO="python3 ../tests/fakeaudio.py <state.json>"`: a fake amixer, pactl and paplay
   whose state (jack, mixer steps, sink port, volume, mute) and call log are in the JSON file; edit `"jack"` to
   plug or unplug, or a mixer step to stand in for pyra_volumed moving it.
+- Display & keyboard light page on the PC: `PYRA_SETTINGS_BACKLIGHT=<file>` (what the GUI reads and writes in
+  place of `~/.config/pyra-backlight.conf`). `idle-dim-ac=true` under `[org/mate/power-manager]` in the keyfile
+  shows the MATE warning. The reload fails on a PC (no pyra-idle-dim unit), so each save ends with the
+  didn't-reload line; the file is written anyway. A file without a section header shows the unreadable state.
 - Killing the GUI from a script: `pkill -f <pattern>` also matches the shell running the command when the
   pattern is in its text, and kills it (exit 144). Kill by PID, or use a pattern the command line doesn't contain.
 - Headless: `Xvfb :91 -screen 0 1280x720x24`, `DISPLAY=:91 GDK_BACKEND=x11` (on a Wayland desktop GTK

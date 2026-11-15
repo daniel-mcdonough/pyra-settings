@@ -55,7 +55,7 @@ v1 pages, in order:
 | Quick settings | `tune` | The settings you change most, in one place. |
 | Suspend & wake | `bedtime` | When the Pyra sleeps, and what wakes it up. |
 | Battery | `battery_5_bar` | What happens when the battery runs low. |
-| Display & keyboard light (v2) | not chosen yet | not written yet |
+| Display & keyboard light (v2) | `display-brightness-symbolic` (working) | How far the screen dims when idle, and the keyboard light at login. (working) |
 | Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
 | Volume wheel (v2) | `audio-volume-high-symbolic` | How the wheel sets the speaker and headphone volume. |
 
@@ -297,6 +297,24 @@ to false (gsettings, as the user). A button, not a switch (owner, 2026-11-15): t
 while it isn't running, so a switch would show a state that a box ticked later in MATE has made false. If a box is
 ticked again, the warning comes back the next time the page is read. Unticking `idle-dim-ac` also stops MATE
 dimming the screen on AC, which pyra-idle-dim does anyway.
+
+**As built (NEXT 4.22, 2026-11-15).** Working names, for the owner to check on the Pyra: dim depth "Dim when idle
+to", idle delay "Idle after" (value "30 min"), level at login "Light at login". Keyboard buttons read 1 ... 60
+without the unit and "100 %" last, as listed above; the screen's each carry "%". Warning text: "MATE's power
+settings will undo the keyboard light level: "Reduce keyboard backlight brightness" or "Dim display when idle" is
+ticked." Choices left open above:
+
+- The file is read with `configparser` as pyra-idle-dim reads it (strict, section names case-sensitive, keys not).
+  A file it refuses (no section header, a key twice) counts as unreadable: greyed out, and never written, since
+  pyra-idle-dim itself ignores it and uses its defaults.
+- A write changes only the key's own line (or adds it at the end of its section, or the section at the end of the
+  file), so comments and other keys stay; temp file and rename, keeping the file's mode (new file 0644).
+- "Saved" shows once the reload has finished. A failed reload: "Saved, but pyra-idle-dim didn't reload. It
+  applies when pyra-idle-dim next starts." for 8 s; systemctl's own message goes to stdout.
+- `org.mate.session` not installed: the idle delay reads "Not found". A MATE key missing from the schema counts as
+  false.
+- After "Turn off" the banner goes, and the focus moves to the first row (the dim depth).
+- The file is reread on opening the page (the applet or an editor may have changed it).
 
 ## Warnings
 

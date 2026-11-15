@@ -1,3 +1,12 @@
+pyra-settings (0.11) trixie; urgency=medium
+
+  * GUI: Display & keyboard light page: screen dim depth and keyboard light
+    level at login in ~/.config/pyra-backlight.conf, the idle delay shown,
+    and a warning with "Turn off" for MATE's own keyboard dim (NEXT 4.22).
+  * Depends on pyra-backlight (>= 0.4), which reads [screen] dim.
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 15 Nov 2026 12:00:00 +0000
+
 pyra-settings (0.10) trixie; urgency=medium
 
   * GUI: the volume wheel page sets each range by ear, with a bundled loop

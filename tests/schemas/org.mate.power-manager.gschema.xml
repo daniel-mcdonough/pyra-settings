@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The keys of org.mate.power-manager that Pyra Settings uses, trimmed from Debian trixie's
+<!-- The keys of org.mate.power-manager that Pyra Settings uses (kbd-backlight-battery-reduce false is image fix 20), trimmed from Debian trixie's
      mate-power-manager-common 1.26.1-1.1, with the image's defaults (docs/design.md "v1 settings") in place of
      upstream's. For running the GUI on a PC without MATE; see docs/testing.md. -->
 <schemalist>
@@ -20,6 +20,12 @@
     </key>
     <key name="button-lid-ac" enum="org.mate.power-manager.ActionType">
       <default>'blank'</default>
+    </key>
+    <key name="kbd-backlight-battery-reduce" type="b">
+      <default>false</default>
+    </key>
+    <key name="idle-dim-ac" type="b">
+      <default>false</default>
     </key>
   </schema>
 </schemalist>
