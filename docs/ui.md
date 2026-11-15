@@ -14,6 +14,8 @@ is here; ask the owner.
 - Volume wheel page agreed (2026-11-14, NEXT 4.11), the same way ("Volume wheel" under "Pages"). The mockup's
   only volume item is the Sound page's button to MATE's panel (the untracked `pyra-settings-configuration-app-ui-plan/`
   bundle is that mockup).
+- Display & keyboard light page agreed (2026-11-15, NEXT 4.17 and 4.21), the same way ("Display & keyboard
+  light" under "Pages"). It replaces the mockup's Display and Keyboard light sketches below.
 
 ## Decisions on the mockup
 
@@ -53,6 +55,7 @@ v1 pages, in order:
 | Quick settings | `tune` | The settings you change most, in one place. |
 | Suspend & wake | `bedtime` | When the Pyra sleeps, and what wakes it up. |
 | Battery | `battery_5_bar` | What happens when the battery runs low. |
+| Display & keyboard light (v2) | not chosen yet | not written yet |
 | Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
 | Volume wheel (v2) | `audio-volume-high-symbolic` | How the wheel sets the speaker and headphone volume. |
 
@@ -256,6 +259,45 @@ without sound. The ends are set by ear instead, with music playing, in place on 
 - If PulseAudio, the jack or the mixer can't be read at the start, nothing starts and the status line says why
   for 8 s.
 
+### Display & keyboard light
+
+Agreed with the owner, 2026-11-15 (NEXT 4.17, 4.21), from the row kinds above; the mockup's sketches (Off / Low /
+Medium / High, "Dim when idle") don't match the agreed mechanism. What the settings do: `design.md`, "Keyboard
+light" and "Screen dimming". In the sidebar after Battery. No row goes through the helper, so no lock icons: the
+page writes `~/.config/pyra-backlight.conf` as the user and runs `systemctl --user reload pyra-idle-dim`.
+
+1. The warning, if either MATE box is ticked (below).
+2. Header **Screen**.
+3. Choice **dim depth**: Off / 10 % / 20 % / 40 % / 60 % (`[screen] dim`: `off` or the number). On the 0-15
+   screen these give levels 1, 3, 6, 9. No key (or no file) shows as 20 %, pyra-idle-dim's fallback; another
+   value shows as "Custom".
+4. Info **idle delay**: `org.mate.session idle-delay` in minutes, read-only. Subtitle along the lines of "Set in
+   MATE's Screensaver preferences. Also starts the screensaver and idle sleep." (`design.md`: the delay isn't
+   only the dim's, so the app doesn't write it).
+5. Header **Keyboard light**.
+6. Choice **level at login**, ten buttons: Last / Off / 1 / 2 / 5 / 10 / 20 / 40 / 60 / 100 % (`[keyboard]
+   level`: `last`, then 0 and the eight non-zero steps of the Fn keys). No key shows as Last; another number as
+   "Custom".
+
+- The labels in bold are working names, as are the sidebar icon and subtitle: the owner checks the wording when
+  the page is built.
+- Ten buttons at 44 px fit: the page area is about 910 px wide at 1280x720.
+- A choice writes its key, keeps the file's other keys and sections, then reloads. After a save: "Saved" for 3 s.
+  The level applies at the next login, the depth at the next idle.
+- File unreadable (not missing): the choice rows stay, greyed out; the status line's idle text says "Can't read
+  the backlight settings: <error> (<file>)". A failed reload (pyra-idle-dim not running) says so in the status
+  line for 8 s; the file is written either way.
+
+**The MATE warning.** MATE's Power Management preferences have two boxes that bring MATE's own keyboard dim and
+restore back, which restore its own level, not the user's (dragonbox-pyra `docs/fixes.md`, fix 20): "Reduce
+keyboard backlight brightness" (battery tab, `org.mate.power-manager kbd-backlight-battery-reduce`) and "Dim
+display when idle" (AC tab, `idle-dim-ac`). When either is true the page shows a warning banner at the top, with
+text saying MATE's power settings will undo the keyboard light level, and a button "Turn off" that sets both keys
+to false (gsettings, as the user). A button, not a switch (owner, 2026-11-15): the app can't keep the boxes off
+while it isn't running, so a switch would show a state that a box ticked later in MATE has made false. If a box is
+ticked again, the warning comes back the next time the page is read. Unticking `idle-dim-ac` also stops MATE
+dimming the screen on AC, which pyra-idle-dim does anyway.
+
 ## Warnings
 
 One warning, in the warning banner, at the top of Quick settings and under "Wake sources".
@@ -263,6 +305,8 @@ One warning, in the warning banner, at the top of Quick settings and under "Wake
 | When | Text | Action |
 |---|---|---|
 | Lid action is Suspend and any shoulder button wakes (without 0053: game buttons wake) | "Shoulder buttons can wake the Pyra while the lid is closed, for example in a bag." (without 0053: "Game buttons ...") | "Turn off shoulder wake" (without 0053: "Turn off game-button wake") |
+
+The Display & keyboard light page has its own warning, for MATE's keyboard dim boxes (described there).
 
 No warning when only the power button can wake the Pyra: the locked Power button row already says so (owner,
 2026-11-12).
@@ -349,9 +393,9 @@ Kept so v2 work starts from the owner's layout. Each needs its own yes (`design.
   temperature, CPU clock), each an icon, a dim 12 px label and a 17 px bold value. Keyboard light choice added
   before "More wake options".
 - **Battery**: header Status, info rows Battery (with charge state and time left) and Charger.
-- **Display** (`brightness_6`): choice Dim the screen after: 30 s / 1 min / 2 min / 5 min / Never; info Dim level,
+- Superseded by "Display & keyboard light" (2026-11-15): **Display** (`brightness_6`): choice Dim the screen after: 30 s / 1 min / 2 min / 5 min / Never; info Dim level,
   dimmed, "Set by the system for now."
-- **Keyboard light** (`keyboard`): choice Default light level: Off / Low / Medium / High (root); switch Dim when
+- Superseded likewise: **Keyboard light** (`keyboard`): choice Default light level: Off / Low / Medium / High (root); switch Dim when
   idle, "Follows the screen dim delay."
 - **Performance** (`speed`): switch Pyra CPU tuning (root), "Tuned frequency scaling. Off restores kernel defaults.";
   header Thermal; info CPU temperature; info Thermal state, "Thermal limits protect the hardware and are fixed."
