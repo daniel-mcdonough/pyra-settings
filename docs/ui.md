@@ -76,6 +76,7 @@ v1 pages, in order:
 | Locked | Label and subtitle left; "Always on" with a lock icon, dim, right | No |
 | Button | Label and subtitle left; a button with the action text and a chevron right | Yes |
 | Warning | Warning-coloured banner (warning icon, text, action button), 8 px above, 12 px below. A `Gtk.InfoBar` of type warning fits | Yes |
+| Slider | Label left; on the right a `Gtk.Scale` (no drawn value), ◀ and ▶ buttons (choice-button size) at its ends, and the number after them (16 px semibold). Agreed for Nubs, NEXT 4.7 | Yes |
 
 - A row is at least 64 px high, padding 10 px vertical, 18 px horizontal, 24 px gap between text and control.
 - A row whose setting goes through the helper shows a small lock icon after its label, always.
@@ -158,22 +159,46 @@ agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every r
 6. Header **Right nub**, then the same three rows for `nubs.right.*`; the button's subtitle "Scroll & click,
    right click".
 7. Header **Speed**.
-8. Choice **Pointer speed**: Slow 40 / Normal 75 / Fast 150 / Very fast 300 (`mouse.sensitivity`).
-9. Choice **Scroll speed**: Slow 40 / Normal 75 / Fast 150 (`mouse.wheel.sensitivity`).
+8. Choice **Pointer speed**: Slow 40 / Normal 75 / Fast 150 / Very fast 300 (`mouse.sensitivity`), then
+   slider **Fine**, 10 to 400.
+9. Choice **Scroll speed**: Slow 40 / Normal 75 / Fast 150 (`mouse.wheel.sensitivity`), then slider **Fine**,
+   10 to 300.
 10. Choice **Pointer deadzone**, subtitle "Raise it if the pointer drifts": Small 25 / Normal 50 / Large 80
-    (`mouse.deadzone`).
+    (`mouse.deadzone`), then slider **Fine**, 0 to 150.
 11. Button **Speed defaults**, subtitle "Also the scroll, click and gamepad deadzones", action "Reset": the
     three keys above and `nubs.deadzone`, `mouse.wheel.deadzone`, `mouse.click.deadzone` to `default`. Those
     three have no row; this is the only way the app undoes them.
 
 - The labels shown on the buttons are the words only (Slow, Normal, ...); the numbers are what is written.
-  Normal is the daemon's built-in value. The preset numbers are a first guess: the owner may want a slider row
-  instead (2026-11-14), a row kind this file doesn't have yet.
+  Normal is the daemon's built-in value. The preset numbers are confirmed (owner, 2026-11-15, NEXT 4.7).
 - The page reads `/etc/pyrainput.cfg` the way the daemon does: last line for a key wins, keys lowercased,
   lines with leading space and comments ignored, a missing key or a missing file = the built-in value. A value
   no option matches shows as "Custom" in the subtitle; picking an option writes only that row's keys.
 - A choice writes the option's value (Normal writes 75, not `default`); only the Reset buttons remove keys.
 - After a save: "Saved" for 3 s. The daemon reloads, so it applies on the next nub movement, not at a suspend.
+
+#### Fine sliders (NEXT 4.7, agreed 2026-11-15)
+
+The owner kept the presets and asked for fine control on all three speed rows. Each choice row gets a slider row
+right under it, always shown, labelled **Fine**, with the lock (it writes through `set-nubs` too).
+
+- Ranges: pointer speed 10-400, scroll speed 10-300, pointer deadzone 0-150, steps of 5. The helper takes more
+  (`nubs.md`), but past these the pointer crosses the screen in a blink, or the deadzone eats most of the nub's
+  travel.
+- The slider and the choice above show the same value: picking a preset moves the slider; a slider value equal to
+  a preset lights that preset, any other value leaves no option lit and the choice's subtitle says "Custom".
+- The number shows the value as the file has it, the built-in value when the key is missing. A value in the file
+  outside the range (or off the 5-step) shows as its own number, with the slider at the nearest end; the file is
+  not rewritten until the user moves the slider.
+- It writes once the value has rested about 1 s (after the last step, or on release of a drag), one `set-nubs
+  key=value`, so you can feel it on the nub before moving on. Not every step: each write is a pkexec run. With
+  `auth_admin_keep` the password is asked once every few minutes at most.
+- Steps made while a write runs aren't lost: the latest value is written when it finishes. The drag and the
+  focus survive the page rebuild after a save.
+- Controller: Up/Down reach the slider row like any row; Left/Right (and the ◀ ▶ buttons) step it by 5, stopping
+  at the ends; A does nothing; B back to the sidebar. Touch: drag the slider, or tap ◀ ▶.
+- File unreadable: greyed out like the choices, the number shows "–".
+- **Speed defaults** moves the three sliders back with their choices.
 - File unreadable (not missing): the rows stay, greyed out, no option selected; the status line's idle text says "Can't read the
   nub settings: <error> (<file>)", as for sysfs.
 
@@ -368,8 +393,8 @@ PgUp and PgDn themselves.
 | Key | Also | Sidebar | Page |
 |---|---|---|---|
 | Up / Down | | Previous / next page (wraps), page scrolls to top | Previous / next focusable row (stops at the ends) |
-| Right | | Into the page, first row | Choice: next option (stops at the end). Switch: on |
-| Left | | | Choice: previous option. Switch: off. Other rows: back to the sidebar |
+| Right | | Into the page, first row | Choice: next option (stops at the end). Switch: on. Slider: +5 |
+| Left | | | Choice: previous option. Switch: off. Slider: -5. Other rows: back to the sidebar |
 | A (Home) | Enter, Space | Into the page | Switch: toggle. Choice: next option, wrapping. Button, warning: its action |
 | B (End) | Escape, Backspace | | Back to the sidebar |
 | Y (PgUp) / X (PgDn) | | Previous / next page | Same, the focus stays where it is |
