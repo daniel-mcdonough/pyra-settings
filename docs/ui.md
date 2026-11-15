@@ -296,10 +296,12 @@ text saying MATE's power settings will undo the keyboard light level, and a butt
 to false (gsettings, as the user). A button, not a switch (owner, 2026-11-15): the app can't keep the boxes off
 while it isn't running, so a switch would show a state that a box ticked later in MATE has made false. If a box is
 ticked again, the warning comes back the next time the page is read. Unticking `idle-dim-ac` also stops MATE
-dimming the screen on AC, which pyra-idle-dim does anyway.
+dimming the screen on AC, which pyra-idle-dim does anyway. `idle-dim-battery` (true on the image) isn't watched: on
+battery MATE's keyboard idle dim also needs `kbd-backlight-battery-reduce` (dragonbox-pyra fix 20).
 
-**As built (NEXT 4.22, 2026-11-15).** Working names, for the owner to check on the Pyra: dim depth "Dim when idle
-to", idle delay "Idle after" (value "30 min"), level at login "Light at login". Keyboard buttons read 1 ... 60
+**As built (NEXT 4.22, 2026-11-15; accepted by the owner on the Pyra, 4.23).** Names: dim depth "Dim when idle
+to", idle delay "Idle after" (value "30 min"), level at login "Light at login"; sidebar icon
+`display-brightness-symbolic`. Keyboard buttons read 1 ... 60
 without the unit and "100 %" last, as listed above; the screen's each carry "%". Warning text: "MATE's power
 settings will undo the keyboard light level: "Reduce keyboard backlight brightness" or "Dim display when idle" is
 ticked." Choices left open above:
