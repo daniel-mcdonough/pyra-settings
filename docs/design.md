@@ -350,7 +350,7 @@ at 14 through idle while the keyboard light still went off.
    | `src/pyra_settings/` | `/usr/share/pyra-settings/` (private module, no dh-python) |
    | `data/org.pyra.settings.wake.policy` | `/usr/share/polkit-1/actions/`; `allow_any`/`allow_inactive` = `auth_admin` |
    | `data/pyra-settings-apply.service` | `/usr/lib/systemd/system/`; `dh_installsystemd` finds it there and enables it (`WantedBy=multi-user.target`) |
-   | `data/pyra-settings.desktop` | `/usr/share/applications/`; `Categories=GTK;Settings;HardwareSettings;` (NEXT 2.4): Control Center's Hardware group, like MATE's hardware panels. `Settings;` alone put it under Other (`/etc/xdg/menus/matecc.menu`) |
+   | `data/pyra-settings.desktop` | `/usr/share/applications/`; `Categories=GTK;Settings;HardwareSettings;` (NEXT 2.4): Control Center's Hardware group, like MATE's hardware panels. `Settings;` alone put it under Other (`/etc/xdg/menus/matecc.menu`). `Comment=Hardware settings for the Pyra` (the tooltip there and in the menu; general so new pages don't make it stale), `Keywords=` lists each page's terms (NEXT 2.8) |
 
    - The unit has `ConditionPathExists=/etc/pyra-settings/pyra-settings.conf`: with no config it is skipped, not
      run. Nothing is shipped in `/etc`; the helper creates the directory on the first `set-wake`, and
