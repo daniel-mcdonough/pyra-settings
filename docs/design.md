@@ -118,7 +118,7 @@ MATE covers. Work items: NEXT 4.x.
 | Setting | Mechanism today | Work needed first |
 |---|---|---|
 | Nubs: what each axis does, clicks, sensitivity, deadzones | `/etc/pyrainput.cfg`, root daemon funkeymonkey-pyrainput, `systemctl reload pyrainput` | Done: helper `set-nubs` (`nubs.md`); profiles out of scope. GUI after the layout |
-| Screen dimming: depth and delay | Depth `PYRA_DIM_PERCENT` in pyra-idle-dim's unit (hard-coded); delay `org.mate.session idle-delay` | pyra-backlight reads the depth from a config file (NEXT 4.2) |
+| Screen dimming: depth and delay | Depth `[screen] dim` in the per-user config file (pyra-backlight 0.4); delay `org.mate.session idle-delay`, shown, set in MATE (below) | Decided and built (4.2); the page's layout in `ui.md` |
 | Keyboard light: level at login, off when idle | `pyra::kbd_backlight` LED; pyra-idle-dim with a per-user config file (below) | Decided (4.3); pyra-backlight change (NEXT 4.16), then the page's layout in `ui.md` (NEXT 4.17) |
 | Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`, `hsrange`), root daemon `pyra_volumed`, helper `set-volume` (`docs/volume-wheel.md`) | Helper done (4.4); a daemon that reads the file (pyra-hacks fork 0.38+pyra2 or later, not fix 12's), check on the Pyra (4.10), page built (4.11, `ui.md` "Volume wheel"), the fork's flutter fixed in 0.38+pyra3 (4.12); page on the Pyra next (4.13) |
 
@@ -149,9 +149,8 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
 
 **Mechanism (pyra-backlight 0.3, NEXT 4.16; checked on the Pyra 2026-11-14).**
 
-- File: `[keyboard] level = last` or an integer 0-100 (the app offers only the nine steps). `[screen]` keys are
-  4.2's. A missing file or key means the defaults (`last`; the screen's current 20%); a bad value is logged and
-  treated as missing.
+- File: `[keyboard] level = last` or an integer 0-100 (the app offers only the nine steps). `[screen]`: see
+  "Screen dimming". A missing file or key means the defaults; a bad value is logged and treated as missing.
 - pyra-idle-dim records the light's level in `$XDG_STATE_HOME/pyra-backlight/kbd-level` (default
   `~/.local/state/`) at each idle-off and when it stops at logout (SIGTERM, which GDBus also raises when the
   session bus goes away). It doesn't record a stop that comes before the login level is set, since the light may
@@ -179,6 +178,36 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   typed with the keyboard light off and the screen dimmed; both come back at unlock. Owner's call (NEXT 4.19).
 - A change made while the light is off for idle is kept at wake (checked with a write of 10 during idle). An Fn
   key can't make one: the key press wakes the session first.
+
+### Screen dimming (owner, 2026-11-14, NEXT 4.2)
+
+**The screen today.** `/sys/class/backlight/backlight`, 0-15 (`max_brightness` 15); 0 turns the panel's light
+off, so the applet's slider stops at 1. pyra-idle-dim drops it to a share of the maximum when the session goes
+idle and puts it back on activity, only if nobody changed it meanwhile. Through 0.3 the share was
+`PYRA_DIM_PERCENT=20` in the user unit (level 3).
+
+**Decisions.**
+
+- **Depth.** `[screen] dim` in `~/.config/pyra-backlight.conf`: a percentage of the maximum, 1-100, or `off`.
+  `off` stops the screen dimming and keeps the keyboard light handling (masking the unit would stop both). The
+  target is `max(1, max_brightness * dim // 100)`: never below 1, never dark; blanking stays mate-screensaver's
+  and mate-power-manager's. Read at start and on SIGHUP, like `[keyboard]`; a bad value is logged and treated as
+  missing.
+- **Fallback.** No key means `PYRA_DIM_PERCENT` from the environment, then 20. The unit no longer sets the
+  variable, so the file wins by default, and a `systemctl --user edit` drop-in from the 0.3 README keeps working.
+- **Delay.** Not written by the app. The page shows `org.mate.session idle-delay` (minutes, 30 from Debian's
+  `10_mate-common.gschema.override`) and says it is set in MATE's Screensaver preferences ("Regard the computer
+  as idle after"), the same key. It isn't only the dim delay: it is when the session goes idle, which also
+  starts the screensaver and lock (`org.mate.screensaver lock-enabled`) and MATE's idle sleep timer (whose times
+  count from it, see "Decisions", idle sleep) and turns the keyboard light off. A control here would move all of
+  those from a page about the screen. Same reasoning as idle sleep: MATE already has the control.
+- **App.** The page writes `[screen] dim` as the user and runs `systemctl --user reload pyra-idle-dim`, as for
+  the keyboard light. No pkexec. Layout in `ui.md` first.
+
+**Mechanism (pyra-backlight 0.4, committed, not yet released; checked on the Pyra 2026-11-14).** With no file
+it logs "dims to 20% of maximum". With `dim = 40` an idle (delay set to 1 min for the test) took the screen 14 -> 6
+and the wake put back 14. `dim = 0` on reload was logged and fell back to 20%. With `dim = off` the screen stayed
+at 14 through idle while the keyboard light still went off.
 
 ## Not exposed
 
