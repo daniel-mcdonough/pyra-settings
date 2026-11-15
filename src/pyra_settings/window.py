@@ -23,7 +23,7 @@ CSS = b"""
 .pyra-sidebar-row.pyra-current-focused label,
 .pyra-sidebar-row.pyra-current-focused image { color: @theme_selected_fg_color; }
 .pyra-sidebar-row.pyra-current { background-color: alpha(@theme_selected_bg_color, 0.15); }
-.pyra-sidebar-row.pyra-current label { font-weight: 600; }
+.pyra-sidebar-row.pyra-current label, .pyra-sidebar-row label.pyra-sizer { font-weight: 600; }
 .pyra-sidebar-row.pyra-current image { color: @theme_selected_bg_color; }
 .pyra-page { padding: 26px 40px 40px 40px; }
 .pyra-title { font-size: 24px; font-weight: bold; }
@@ -38,7 +38,8 @@ CSS = b"""
 .pyra-row-sub { font-size: 13px; color: alpha(@theme_fg_color, 0.6); }
 .pyra-row-value { font-size: 16px; font-weight: 600; }
 .pyra-dim { color: alpha(@theme_fg_color, 0.6); }
-.pyra-option { min-width: 44px; min-height: 40px; }
+/* GTK 3 sizes the content box: 22 + 2 x 10 padding + 2 x 1 border is the 44 px minimum (docs/ui.md). */
+.pyra-option { min-width: 22px; min-height: 40px; padding: 0 10px; }
 .pyra-option.pyra-selected { background-image: none; background-color: @theme_selected_bg_color;
                              color: @theme_selected_fg_color; }
 .pyra-warning { margin-top: 5px; margin-bottom: 9px; border: 3px solid transparent; }
@@ -204,8 +205,8 @@ class ChoiceRow(Row):
         self.current = current
         self.on_change = on_change
         self.sensitive = sensitive
-        buttons = Gtk.Box(valign=Gtk.Align.CENTER)
-        buttons.get_style_context().add_class("linked")
+        # Separate buttons, not GTK's "linked" style, which some themes draw as one box (owner, 2026-11-15).
+        buttons = Gtk.Box(valign=Gtk.Align.CENTER, spacing=6)
         for value, text in options:
             button = Gtk.Button(label=text, can_focus=False)
             button.get_style_context().add_class("pyra-option")
@@ -387,7 +388,13 @@ class PyraSettingsWindow(Gtk.Window):
             box = Gtk.Box(spacing=14)
             box.get_style_context().add_class("pyra-sidebar-row")
             box.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR), False, False, 0)
-            box.pack_start(_label(title), False, False, 0)
+            # The current page's title turns semibold; a hidden semibold copy keeps its width, so the sidebar
+            # doesn't grow when the focus moves into the page.
+            text = Gtk.Stack(hhomogeneous=True, vhomogeneous=True)
+            label = _label(title)
+            text.add(label)
+            text.add(_label(title, "pyra-sizer"))
+            box.pack_start(text, False, False, 0)
             event = Gtk.EventBox()
             event.add(box)
             event.connect("button-release-event", self._sidebar_clicked, i)

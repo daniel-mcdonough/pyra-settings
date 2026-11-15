@@ -71,7 +71,7 @@ v1 pages, in order:
 |---|---|---|
 | Header | Section label, 14 px bold, dim, 24 px above and 10 px below | No |
 | Switch | Label (16 px) and optional subtitle (13 px, dim) on the left, a `Gtk.Switch` on the right | Yes |
-| Choice | Label left; on the right a row of linked buttons, one per option, the current one in the accent colour. Each button at least 44x40 px | Yes |
+| Choice | Label left; on the right a row of separate buttons 6 px apart, one per option, the current one in the accent colour. Each button at least 44x40 px | Yes |
 | Info | Label left, value right (16 px semibold). Can be dimmed (50 %) | No |
 | Locked | Label and subtitle left; "Always on" with a lock icon, dim, right | No |
 | Button | Label and subtitle left; a button with the action text and a chevron right | Yes |
@@ -392,6 +392,13 @@ Made while writing the GUI, where the sections above say nothing. All accepted b
 - Greyed-out rows still take the focus; A and ◀▶ do nothing on them.
 - Hint glyphs are fixed dark badges (`#333`, white text), not theme colours, as the mockup's are.
 - The warning's focus ring is a 3 px frame around the `Gtk.InfoBar` (its children paint over a box-shadow).
+- (2026-11-15, owner) Choice buttons are separate, 6 px apart, not GTK's `linked` style, which looked like one
+  continuous box. Option padding is fixed at 10 px a side: the theme's (Breeze on the PC, at the Pyra's Sans 12
+  and 117 dpi) made every button 78 px wide and pushed the ten-button keyboard row past the screen. 44 px stays
+  the minimum.
+- (2026-11-15, owner) The sidebar title turns semibold on the current page; it reserves the semibold width all the
+  time, so the sidebar doesn't widen when the focus moves into the page. At the Pyra's font "Display & keyboard
+  light" makes the sidebar about 314 px instead of 290.
 
 ## Checked on the Pyra (NEXT 1.6, 2026-11-13)
 
