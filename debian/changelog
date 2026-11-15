@@ -1,3 +1,12 @@
+pyra-settings (0.12) trixie; urgency=medium
+
+  * GUI: Nubs page: a Fine slider under the pointer speed, scroll speed and
+    pointer deadzone choices, steps of 5, written once the value has rested
+    about a second; steps made during a write are written after it
+    (NEXT 4.24).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 15 Nov 2026 18:00:00 +0000
+
 pyra-settings (0.11) trixie; urgency=medium
 
   * GUI: Display & keyboard light page: screen dim depth and keyboard light

@@ -257,6 +257,13 @@ SPEED_ROWS = (
     ("mouse.deadzone", "Pointer deadzone", "Raise it if the pointer drifts",
      (("25", "Small"), ("50", "Normal"), ("80", "Large"))),
 )
+# Fine sliders under the speed rows (docs/ui.md "Fine sliders"): key -> (lowest, highest). Steps of FINE_STEP.
+FINE_RANGES = {
+    "mouse.sensitivity": (10, 400),
+    "mouse.wheel.sensitivity": (10, 300),
+    "mouse.deadzone": (0, 150),
+}
+FINE_STEP = 5
 # What each Reset button sets back to default. Speed also takes the deadzones that have no row.
 NUB_SECTION_KEYS = {
     "left": ("nubs.left.x", "nubs.left.y", "nubs.left.click"),
@@ -366,6 +373,49 @@ def current_speed(nubs, key, options):
         return None
     value = str(int(m.group(0)))
     return value if value in [o for o, _ in options] else None
+
+
+def fine_value(nubs, key):
+    """The int the daemon's std::stoi reads from the key, or None if it doesn't start with a number."""
+    m = _INT_RE.match(nubs.values[key])
+    return int(m.group(0)) if m else None
+
+
+def fine_text(nubs, key):
+    """The slider's number: the file's value as it reads, out of range or off the step included."""
+    value = fine_value(nubs, key)
+    return nubs.values[key] if value is None else str(value)
+
+
+def fine_position(value, key):
+    """Where the slider sits for a value: the value itself, or the nearest end when it is outside the range.
+    A value that isn't a number sits at the built-in value."""
+    low, high = FINE_RANGES[key]
+    if value is None:
+        value = int(NUB_DEFAULTS[key])
+    return max(low, min(high, value))
+
+
+def fine_step(value, key, delta):
+    """The value after one step (delta -1 or +1): the next multiple of FINE_STEP that way, stopping at the
+    ends. From outside the range a step back in lands on the end; a step further out changes nothing. Returns
+    the value unchanged when there is nowhere to go."""
+    low, high = FINE_RANGES[key]
+    if value is None:
+        return int(NUB_DEFAULTS[key])
+    if delta > 0:
+        if value >= high:
+            return value
+        return min(high, max(low, (value // FINE_STEP + 1) * FINE_STEP))
+    if value <= low:
+        return value
+    return max(low, min(high, -((-value) // FINE_STEP + 1) * FINE_STEP))
+
+
+def fine_snap(position, key):
+    """A dragged slider position rounded to the step, inside the range."""
+    low, high = FINE_RANGES[key]
+    return max(low, min(high, int(round(position / FINE_STEP)) * FINE_STEP))
 
 
 def reset_changes(section):

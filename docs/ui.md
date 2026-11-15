@@ -426,6 +426,19 @@ Made while writing the GUI, where the sections above say nothing. All accepted b
 - (2026-11-15, owner) The sidebar title turns semibold on the current page; it reserves the semibold width all the
   time, so the sidebar doesn't widen when the focus moves into the page. At the Pyra's font "Display & keyboard
   light" makes the sidebar about 314 px instead of 290.
+- Fine sliders (NEXT 4.24, package 0.12):
+  - The scale is 320 px wide; the number keeps 4 characters' width, so the scale doesn't shift.
+  - From an off-step value a step lands on the next multiple of 5 that way (123: ▶ 125, ◀ 120). From outside
+    the range ◀ / ▶ towards it lands on the end; away from it does nothing.
+  - A file value that isn't a number (the daemon would crash on it, `nubs.md`) shows as its text, the slider at
+    the built-in value, and a step goes to the built-in value.
+  - The slider stays usable while the helper runs (the choices grey out); its steps wait for the run.
+  - While the scale is held, the page isn't rebuilt: a save that ends mid-drag rebuilds on release (until then
+    the other rows keep the look they had, greyed if a write was running). The slider and the choice above
+    change in place under the drag.
+  - Several sliders' steps resting at once go in one `set-nubs` run.
+  - A step still resting when the window closes is written anyway (the helper outlives the app); one made
+    during a run that hasn't finished is lost.
 
 ## Checked on the Pyra (NEXT 1.6, 2026-11-13)
 

@@ -1,14 +1,20 @@
-"""pyra-settings-helper set-nubs against a fake /etc/pyrainput.cfg (NEXT 4.1)."""
+"""pyra-settings-helper set-nubs against a fake /etc/pyrainput.cfg (NEXT 4.1), and the Fine sliders' logic
+(NEXT 4.24)."""
 
 import contextlib
 import io
 import os
 import stat
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
 from test_helper import helper
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
+
+from pyra_settings import state as st  # noqa: E402
 
 # The image's file (dragonbox-pyra fix 15), plus the lines pyrainputctl overload appends.
 IMAGE_CFG = (
@@ -170,6 +176,100 @@ class TestNubPathConstant(unittest.TestCase):
             fresh = load_helper()
         self.assertEqual(fresh.PYRAINPUT_PATH, "/etc/pyrainput.cfg")
         self.assertEqual(fresh.PYRAINPUT_RELOAD[0], "/usr/bin/systemctl")
+
+
+class TestFineSliders(unittest.TestCase):
+    """docs/ui.md "Fine sliders": ranges, steps, and the slider and the preset showing the same value."""
+
+    def nubs(self, text):
+        return st.parse_pyrainput(text)
+
+    def test_a_slider_under_every_speed_row(self):
+        self.assertEqual(set(st.FINE_RANGES), {key for key, _l, _s, _o in st.SPEED_ROWS})
+        self.assertEqual(st.FINE_RANGES["mouse.sensitivity"], (10, 400))
+        self.assertEqual(st.FINE_RANGES["mouse.wheel.sensitivity"], (10, 300))
+        self.assertEqual(st.FINE_RANGES["mouse.deadzone"], (0, 150))
+
+    def test_presets_and_built_in_values_are_on_the_slider(self):
+        for key, _label, _sub, options in st.SPEED_ROWS:
+            low, high = st.FINE_RANGES[key]
+            for value in [int(v) for v, _ in options] + [int(st.NUB_DEFAULTS[key])]:
+                self.assertTrue(low <= value <= high and value % st.FINE_STEP == 0, (key, value))
+
+    def test_helper_takes_the_whole_range(self):
+        for key, (low, high) in st.FINE_RANGES.items():
+            for value in (low, high):
+                self.assertEqual(helper.check_nub_value(key, str(value)), str(value), key)
+
+    def test_missing_key_is_the_built_in_value(self):
+        n = self.nubs("")
+        self.assertEqual(st.fine_text(n, "mouse.sensitivity"), "75")
+        self.assertEqual(st.fine_position(st.fine_value(n, "mouse.deadzone"), "mouse.deadzone"), 50)
+
+    def test_preset_moves_the_slider(self):
+        n = self.nubs("").with_values({"mouse.sensitivity": "150"})
+        self.assertEqual(st.fine_value(n, "mouse.sensitivity"), 150)
+        self.assertEqual(st.fine_text(n, "mouse.sensitivity"), "150")
+
+    def test_slider_value_lights_a_preset_or_none(self):
+        options = st.SPEED_ROWS[0][3]
+        n = self.nubs("mouse.sensitivity = 150\n")
+        self.assertEqual(st.current_speed(n, "mouse.sensitivity", options), "150")
+        n = n.with_values({"mouse.sensitivity": str(st.fine_step(150, "mouse.sensitivity", 1))})
+        self.assertEqual(st.fine_text(n, "mouse.sensitivity"), "155")
+        self.assertIsNone(st.current_speed(n, "mouse.sensitivity", options))
+
+    def test_steps_of_five_stop_at_the_ends(self):
+        key = "mouse.sensitivity"
+        self.assertEqual(st.fine_step(75, key, 1), 80)
+        self.assertEqual(st.fine_step(75, key, -1), 70)
+        self.assertEqual(st.fine_step(400, key, 1), 400)
+        self.assertEqual(st.fine_step(10, key, -1), 10)
+        self.assertEqual(st.fine_step(0, "mouse.deadzone", -1), 0)
+        self.assertEqual(st.fine_step(5, "mouse.deadzone", -1), 0)
+
+    def test_off_step_value_steps_onto_the_grid(self):
+        key = "mouse.wheel.sensitivity"
+        self.assertEqual(st.fine_step(123, key, 1), 125)
+        self.assertEqual(st.fine_step(123, key, -1), 120)
+        self.assertEqual(st.fine_step(12, key, -1), 10)
+
+    def test_out_of_range_shows_its_number_at_the_nearest_end(self):
+        n = self.nubs("mouse.sensitivity = 600\nmouse.deadzone=-4\nmouse.wheel.sensitivity = 7\n")
+        self.assertEqual(st.fine_text(n, "mouse.sensitivity"), "600")
+        self.assertEqual(st.fine_position(600, "mouse.sensitivity"), 400)
+        self.assertEqual(st.fine_text(n, "mouse.deadzone"), "-4")
+        self.assertEqual(st.fine_position(-4, "mouse.deadzone"), 0)
+        self.assertEqual(st.fine_position(7, "mouse.wheel.sensitivity"), 10)
+        self.assertEqual(st.fine_position(123, "mouse.wheel.sensitivity"), 123)   # off the step: as it is
+
+    def test_out_of_range_steps_back_to_the_end_only(self):
+        self.assertEqual(st.fine_step(600, "mouse.sensitivity", -1), 400)
+        self.assertEqual(st.fine_step(600, "mouse.sensitivity", 1), 600)       # no change, nothing written
+        self.assertEqual(st.fine_step(7, "mouse.wheel.sensitivity", 1), 10)
+        self.assertEqual(st.fine_step(7, "mouse.wheel.sensitivity", -1), 7)
+
+    def test_value_read_as_stoi(self):
+        n = self.nubs("mouse.sensitivity = 0120 fast\n")
+        self.assertEqual(st.fine_text(n, "mouse.sensitivity"), "120")
+
+    def test_not_a_number(self):
+        n = self.nubs("mouse.sensitivity = fast\n")
+        self.assertIsNone(st.fine_value(n, "mouse.sensitivity"))
+        self.assertEqual(st.fine_text(n, "mouse.sensitivity"), "fast")
+        self.assertEqual(st.fine_position(None, "mouse.sensitivity"), 75)
+        self.assertEqual(st.fine_step(None, "mouse.sensitivity", -1), 75)
+
+    def test_drag_snaps_to_the_step(self):
+        self.assertEqual(st.fine_snap(77.4, "mouse.sensitivity"), 75)
+        self.assertEqual(st.fine_snap(78.0, "mouse.sensitivity"), 80)
+        self.assertEqual(st.fine_snap(3.0, "mouse.sensitivity"), 10)
+        self.assertEqual(st.fine_snap(151.0, "mouse.deadzone"), 150)
+
+    def test_speed_defaults_moves_the_sliders_back(self):
+        n = self.nubs("mouse.sensitivity = 205\nmouse.deadzone = 95\n").with_values(st.reset_changes("speed"))
+        for key in st.FINE_RANGES:
+            self.assertEqual(st.fine_text(n, key), st.NUB_DEFAULTS[key])
 
 
 if __name__ == "__main__":

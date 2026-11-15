@@ -1,4 +1,4 @@
-"""The Pyra Settings window (NEXT 1.3, Nubs 4.6, Volume wheel 4.11 and 4.15, Display & keyboard light 4.22): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
+"""The Pyra Settings window (NEXT 1.3, Nubs 4.6 and 4.24, Volume wheel 4.11 and 4.15, Display & keyboard light 4.22): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
 
 The app keeps its own focus (sidebar or a page row) instead of GTK's, because the Pyra's A, B, Y and X buttons
 are Home, End, PgUp and PgDn, which GTK widgets would take. No widget can take keyboard focus.
@@ -42,6 +42,7 @@ CSS = b"""
 .pyra-option { min-width: 22px; min-height: 40px; padding: 0 10px; }
 .pyra-option.pyra-selected { background-image: none; background-color: @theme_selected_bg_color;
                              color: @theme_selected_fg_color; }
+.pyra-scale { min-width: 320px; }
 .pyra-warning { margin-top: 5px; margin-bottom: 9px; border: 3px solid transparent; }
 .pyra-warning.pyra-focus { border-color: @theme_selected_bg_color; }
 .pyra-hintbar { min-height: 46px; padding: 0 20px; }
@@ -71,6 +72,7 @@ JACK_POLL_TICKS = 4      # the jack is read every 4th wheel poll, once a second
 SCROLL_MARGIN = 60
 SAVED_MS = 3000
 SAVED_WAKE_MS = 4000
+FINE_REST_MS = 1000      # a Fine slider writes once its value has rested this long (docs/ui.md "Fine sliders")
 ERROR_MS = 8000
 
 K = Gdk
@@ -104,11 +106,18 @@ class Row:
             # Every row that goes through the helper, always: auth_admin_keep expires unseen (docs/ui.md).
             title.pack_start(Gtk.Image.new_from_icon_name(LOCK_ICON, Gtk.IconSize.MENU), False, False, 0)
         text.pack_start(title, False, False, 0)
-        if subtitle:
-            text.pack_start(_label(subtitle, "pyra-row-sub", wrap=True), False, False, 0)
+        # Always made, hidden while empty, so a row can change it in place (set_subtitle).
+        self.sub = _label(subtitle, "pyra-row-sub", wrap=True)
+        self.sub.set_no_show_all(True)
+        self.sub.set_visible(bool(subtitle))
+        text.pack_start(self.sub, False, False, 0)
         self.box.pack_start(text, True, True, 0)
         self.widget = Gtk.EventBox()
         self.widget.add(self.box)
+
+    def set_subtitle(self, text):
+        self.sub.set_text(text)
+        self.sub.set_visible(bool(text))
 
     def set_focus(self, focused):
         ctx = self.box.get_style_context()
@@ -207,8 +216,9 @@ class ChoiceRow(Row):
         self.sensitive = sensitive
         # Separate buttons, not GTK's "linked" style, which some themes draw as one box (owner, 2026-11-15).
         buttons = Gtk.Box(valign=Gtk.Align.CENTER, spacing=6)
+        self.buttons = {}
         for value, text in options:
-            button = Gtk.Button(label=text, can_focus=False)
+            button = self.buttons[value] = Gtk.Button(label=text, can_focus=False)
             button.get_style_context().add_class("pyra-option")
             if value == current:
                 button.get_style_context().add_class("pyra-selected")
@@ -216,6 +226,14 @@ class ChoiceRow(Row):
             buttons.pack_start(button, False, False, 0)
         self.box.pack_end(buttons, False, False, 0)
         self.box.set_sensitive(sensitive)
+
+    def show_current(self, current, subtitle):
+        """Light another option without a rebuild, for a Fine slider being dragged under it."""
+        self.current = current
+        for value, button in self.buttons.items():
+            ctx = button.get_style_context()
+            (ctx.add_class if value == current else ctx.remove_class)("pyra-selected")
+        self.set_subtitle(subtitle)
 
     def _clicked(self, _button, value, focus_row):
         focus_row(self)
@@ -296,6 +314,91 @@ class RangeRow(ButtonRow):
         return self.adjusting
 
 
+class SliderRow(Row):
+    """A Fine slider (docs/ui.md row kind "Slider"): a scale between ◀ and ▶, and the number. Steps and drags
+    go to on_step(delta) and on_drag(value); the window writes them later. on_press(pressed) tells the window
+    while the scale is held, so it doesn't rebuild the page under the drag."""
+
+    focusable = True
+    kind = "slider"
+
+    def __init__(self, key, label, text, position, bounds, on_step, on_drag, on_press, focus_row, sensitive):
+        super().__init__(key, label, locked=True)
+        self.on_step = on_step
+        self.on_drag = on_drag
+        self.on_press = on_press
+        self.focus_row = focus_row
+        self.sensitive = sensitive
+        low, high = bounds
+        right = Gtk.Box(valign=Gtk.Align.CENTER, spacing=6)
+        less = Gtk.Button(label="\u25c0", can_focus=False)
+        more = Gtk.Button(label="\u25b6", can_focus=False)
+        adj = Gtk.Adjustment(value=position, lower=low, upper=high, step_increment=st.FINE_STEP,
+                             page_increment=st.FINE_STEP)
+        self.scale = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL, adjustment=adj, draw_value=False,
+                               can_focus=False, valign=Gtk.Align.CENTER)
+        self.scale.get_style_context().add_class("pyra-scale")
+        self.scale.connect("change-value", self._changed)
+        self.scale.connect("event", self._event)
+        self.scale.connect("unmap", lambda _w: self._pressed(False))
+        # The number keeps the width of the widest value it shows, so the scale doesn't shift as it changes.
+        self.value = _label(text, "pyra-row-value", xalign=1.0)
+        self.value.set_width_chars(4)
+        for button, delta in ((less, -1), (more, 1)):
+            button.get_style_context().add_class("pyra-option")
+            button.connect("clicked", self._clicked, delta)
+        right.pack_start(less, False, False, 0)
+        right.pack_start(self.scale, False, False, 0)
+        right.pack_start(more, False, False, 0)
+        right.pack_start(self.value, False, False, 0)
+        self.box.pack_end(right, False, False, 0)
+        self.box.set_sensitive(sensitive)
+        self.held = False
+
+    def show_value(self, text, position):
+        self.value.set_text(text)
+        self.scale.set_value(position)
+
+    def _clicked(self, _button, delta):
+        self.focus_row(self)
+        self._step(delta)
+
+    def _step(self, delta):
+        if self.sensitive:
+            self.on_step(delta)
+
+    def _changed(self, _scale, _scroll, position):
+        # Only the user's moves come here (a drag, a tap on the trough, the mouse wheel); the window snaps the
+        # value to the step and puts the scale there.
+        if self.sensitive:
+            self.focus_row(self)
+            self.on_drag(position)
+        return True
+
+    def _event(self, _scale, event):
+        # The "event" signal comes before the scale's own gestures take the press, for the mouse and touch.
+        t = event.type
+        if t in (Gdk.EventType.BUTTON_PRESS, Gdk.EventType.TOUCH_BEGIN):
+            self._pressed(True)
+        elif t in (Gdk.EventType.BUTTON_RELEASE, Gdk.EventType.TOUCH_END, Gdk.EventType.TOUCH_CANCEL,
+                   Gdk.EventType.GRAB_BROKEN):
+            self._pressed(False)
+        return False
+
+    def _pressed(self, held):
+        if held != self.held:
+            self.held = held
+            self.on_press(held)
+
+    def left(self):
+        self._step(-1)
+        return True
+
+    def right(self):
+        self._step(1)
+        return True
+
+
 class WarningRow(Row):
     focusable = True
     kind = "warning"
@@ -367,6 +470,10 @@ class PyraSettingsWindow(Gtk.Window):
         self.jack = None            # headphones plugged in; None if it can't be read
         self.poll_ticks = 0
         self.busy = False
+        self.fine = {}              # Fine slider values not yet written: key -> int (docs/ui.md "Fine sliders")
+        self.fine_timer = None      # runs while the latest of them rests
+        self.fine_held = None       # the key of the slider being dragged; the page isn't rebuilt under it
+        self.rebuild_held = False   # a rebuild waits for the drag to end
         self.saved = st.SAVED_WAKE
         self.page = 0
         self.in_page = False
@@ -505,6 +612,12 @@ class PyraSettingsWindow(Gtk.Window):
     def _destroyed(self, _window):
         if self.rng is not None:
             self._end_range()
+        if self.fine and not self.busy:
+            # A step still resting when the window closes is written anyway; the helper outlives the app.
+            try:
+                Gio.Subprocess.new(self._fine_argv(), Gio.SubprocessFlags.STDOUT_SILENCE)
+            except GLib.Error as e:
+                print("pyra-settings: %s" % e.message)
         Gtk.main_quit()
 
     def _get(self, key):
@@ -618,10 +731,103 @@ class PyraSettingsWindow(Gtk.Window):
         self.rebuild()
         ms = (SAVED_WAKE_MS if self.saved == st.SAVED_WAKE else SAVED_MS) if ok else ERROR_MS
         self.status(message, ms, error=not ok)
+        if self.fine and self.fine_timer is None and self.fine_held is None:
+            # Steps made while the helper ran, already rested: the latest value goes now.
+            self._write_fine()
+
+    # Fine sliders (docs/ui.md "Fine sliders"): steps collect in self.fine and go to set-nubs in one run once
+    # the value has rested FINE_REST_MS, or when the helper that was running finishes.
+
+    def _fine_shown(self, key):
+        """The slider's value as an int (None if the file's isn't a number) and its number text."""
+        if key in self.fine:
+            return self.fine[key], str(self.fine[key])
+        return st.fine_value(self.nubs, key), st.fine_text(self.nubs, key)
+
+    def _fine_set(self, key, value):
+        self.fine[key] = value
+        if self.fine_timer:
+            GLib.source_remove(self.fine_timer)
+            self.fine_timer = None
+        if self.fine_held is None:
+            self.fine_timer = GLib.timeout_add(FINE_REST_MS, self._fine_rested)
+
+    def _fine_step(self, key, delta):
+        if self.nubs is None:
+            return
+        value, _text = self._fine_shown(key)
+        new = st.fine_step(value, key, delta)
+        if new != value:
+            self._fine_set(key, new)
+            self.rebuild()
+
+    def _fine_drag(self, key, position):
+        if self.nubs is None:
+            return
+        value, text = self._fine_shown(key)
+        new = st.fine_snap(position, key)
+        rows = {r.key: r for r in self.rows.get("nubs", [])}
+        slider = rows.get("fine-" + key)
+        if new == value:
+            if slider:
+                slider.show_value(text, st.fine_position(value, key))
+            return
+        self._fine_set(key, new)
+        # Under a drag the page isn't rebuilt: the slider and the choice above change in place.
+        if slider:
+            slider.show_value(str(new), new)
+        choice = rows.get(key)
+        if choice:
+            subtitle, options = next((sub, o) for k, _l, sub, o in st.SPEED_ROWS if k == key)
+            current = st.current_speed(self.nubs.with_values({key: str(new)}), key, options)
+            choice.show_current(current, self._custom_text(current, subtitle))
+
+    def _fine_press(self, key, held):
+        if held:
+            self.fine_held = key
+            if self.fine_timer:
+                GLib.source_remove(self.fine_timer)
+                self.fine_timer = None
+            return
+        if self.fine_held != key:
+            return
+        self.fine_held = None
+        if self.fine:
+            self.fine_timer = GLib.timeout_add(FINE_REST_MS, self._fine_rested)
+        if self.rebuild_held:
+            self.rebuild()
+
+    def _fine_rested(self):
+        self.fine_timer = None
+        if not self.busy and self.fine_held is None:
+            self._write_fine()
+        return False
+
+    def _fine_argv(self):
+        return st.nubs_argv({key: str(value) for key, value in self.fine.items()})
+
+    def _write_fine(self):
+        changes = {key: str(value) for key, value in self.fine.items()}
+        self.fine = {}
+        self.set_nubs(changes)
+
+    def _pick_speed(self, key, value):
+        self.fine.pop(key, None)
+        self.set_nubs({key: value})
+
+    def _reset_nubs(self, section):
+        for key in st.NUB_SECTION_KEYS[section]:
+            self.fine.pop(key, None)
+        self.set_nubs(st.reset_changes(section))
 
     # Pages
 
     def rebuild(self):
+        if self.fine_held is not None:
+            # Rebuilding would take the slider from under the finger; it runs when the drag ends.
+            self.rebuild_held = True
+            return
+        self.rebuild_held = False
         focused = self._focused_row()
         focused_key = focused.key if focused else None
         self.rows = {}
@@ -756,10 +962,12 @@ class PyraSettingsWindow(Gtk.Window):
         # File unreadable: the rows stay, greyed out, with no option selected; the status line says why.
         sensitive = n is not None and not self.busy
 
+        if n is not None and self.fine:
+            # Steps not yet written show on the choices too.
+            n = n.with_values({key: str(value) for key, value in self.fine.items()})
+
         def sub(current, base=""):
-            if n is None or current:
-                return base
-            return "Custom. " + base if base else "Custom"
+            return base if n is None else self._custom_text(current, base)
         rows = []
         if n and n.profile:
             rows.append(InfoRow("nub-profile", "A nub profile is loaded", n.profile,
@@ -783,16 +991,30 @@ class PyraSettingsWindow(Gtk.Window):
         for key, label, subtitle, options in st.SPEED_ROWS:
             current = st.current_speed(n, key, options) if n else None
             rows.append(ChoiceRow(key, label, sub(current, subtitle), options, current,
-                                  lambda v, key=key: self.set_nubs({key: v}), self._focus_row,
+                                  lambda v, key=key: self._pick_speed(key, v), self._focus_row,
                                   locked=True, sensitive=sensitive))
+            # Steps are taken while the helper runs (they wait for it), so only an unreadable file greys it.
+            if n is None:
+                value, text = None, "\u2013"
+            else:
+                value, text = self._fine_shown(key)
+            rows.append(SliderRow("fine-" + key, "Fine", text, st.fine_position(value, key), st.FINE_RANGES[key],
+                                  lambda d, key=key: self._fine_step(key, d),
+                                  lambda p, key=key: self._fine_drag(key, p),
+                                  lambda h, key=key: self._fine_press(key, h), self._focus_row, n is not None))
         rows.append(self._reset_row("speed", "Speed defaults", "Also the scroll, click and gamepad deadzones",
                                     sensitive))
         return rows
 
+    def _custom_text(self, current, base=""):
+        if current:
+            return base
+        return "Custom. " + base if base else "Custom"
+
     def _reset_row(self, section, label, subtitle, sensitive):
         def reset():
             if sensitive:
-                self.set_nubs(st.reset_changes(section))
+                self._reset_nubs(section)
         row = ButtonRow("reset-" + section, label, subtitle, "Reset", reset, locked=True)
         row.box.set_sensitive(sensitive)
         return row
@@ -1175,7 +1397,7 @@ class PyraSettingsWindow(Gtk.Window):
         if self.in_page:
             row = self._focused_row()
             hints = [(("▲", "▼"), "Move")]
-            if row is not None and (row.kind == "choice" or getattr(row, "adjusting", False)):
+            if row is not None and (row.kind in ("choice", "slider") or getattr(row, "adjusting", False)):
                 hints.append((("◀", "▶"), "Change"))
             if row is not None and row.kind == "switch":
                 hints.append((("A",), "Toggle"))
