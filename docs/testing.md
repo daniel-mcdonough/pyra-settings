@@ -81,6 +81,15 @@ just ends at the RTC timer. Check before starting one.
    not rise.
 5. Ignore `power/wakeup_count` on the gpio-keys devices: it stays 0 either way.
 
+## On the Pyra: idle, screensaver and lock by script
+
+Warn the owner first: the screen blanks and locks. Set `org.mate.session idle-delay` to 1 and put it back after.
+
+- After setting the delay, send one input event
+  (an XTest key through `ctypes` on `libXtst.so.6`; no xdotool on the image), or the session never goes idle if X
+  was already idle longer than the new delay. The lock engages `lock-delay` (1 min) after the screensaver starts.
+  `mate-screensaver-command -q` queries; `-i` inhibits and blocks until killed. `-d` ends the screensaver.
+
 ## Trying a kernel change
 
 From the dragonbox-pyra checkout: `./pc/pyra-crossbuild.sh kernel-m4-kbdled-test`, then `./pc/pyra-push-kernel.sh
