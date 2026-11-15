@@ -5,5 +5,5 @@ Comment=Suspend and wake settings for the Pyra
 Exec=pyra-settings
 Icon=preferences-system
 Terminal=false
-Categories=Settings;
+Categories=GTK;Settings;HardwareSettings;
 Keywords=Pyra;suspend;sleep;wake;lid;battery;

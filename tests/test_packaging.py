@@ -45,7 +45,11 @@ class PackagingTest(unittest.TestCase):
     def test_desktop(self):
         entry = read_ini("data/pyra-settings.desktop")["Desktop Entry"]
         self.assertEqual(entry["Exec"], "pyra-settings")
-        self.assertIn("Settings", entry["Categories"].split(";"))
+        # MATE Control Center's Hardware group needs both and no System (NEXT 2.4).
+        categories = entry["Categories"].split(";")
+        self.assertIn("Settings", categories)
+        self.assertIn("HardwareSettings", categories)
+        self.assertNotIn("System", categories)
 
     def test_install_list(self):
         with open(path("debian", "install")) as f:

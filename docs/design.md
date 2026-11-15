@@ -53,7 +53,8 @@ Pyra-only ones, and leaves everything else in MATE.
   means patching a C program in a Debian package and carrying the patch on every MATE update: a fork to maintain
   for one page.
 - **The MATE look anyway.** MATE Control Center lists every `.desktop` file with `Categories=Settings`, so the app
-  gets an icon there, next to MATE's own panels, and in System > Preferences.
+  gets an icon there, next to MATE's own panels, and in System > Preferences. It sits in the Hardware group with
+  Power Management, Keyboard, Mouse and Display (`Categories=GTK;Settings;HardwareSettings;`, see "Packaging").
 - **Pulling MATE settings in is safe.** Both apps write the same gsettings keys. gsettings is the single store and
   notifies every reader, so nothing is copied or synced; a change in either app shows in the other.
 
@@ -78,6 +79,21 @@ duplicating panels that already work.
 | Lid wakes the Pyra | On: `pyra-lid-wakeup/wakeup_switches` = `0` (0053) and `power/wakeup` = `enabled`. Off: `power/wakeup` = `disabled` | Helper, as root | On |
 | Lid action, battery and AC | gsettings `org.mate.power-manager button-lid-battery`, `button-lid-ac` | GUI, as the user | `blank` |
 | Critical battery action | gsettings `org.mate.power-manager action-critical-battery` | GUI, as the user | `shutdown` (image fix 24) |
+
+**Critical battery on the image** (checked on the Pyra, 2026-11-15):
+
+- The key's enum (`gsettings range`) is `blank`, `suspend`, `shutdown`, `hibernate`, `interactive`, `nothing`. A
+  `gsettings set` of `shutdown` sticks; a value outside the enum is refused (exit 1, value unchanged). The
+  schema default is `shutdown` from fix 24's `99_pyra_power.gschema.override` (upstream: `hibernate`).
+- MATE's Power Management panel hides hibernate. mate-power-manager 1.26.1 (`gpm-prefs-core.c`) adds an action
+  to its combos only when logind's `CanSuspend`, `CanHibernate` or `CanPowerOff` answers exactly `yes`. The
+  image's `CanHibernate` and `CanHybridSleep` are `na`, so no combo offers Hibernate. In the desktop session the
+  battery tab shows "When battery power is critically low: Shutdown".
+- The panel run from ssh offers nothing: outside the seat session logind answers `challenge` for suspend and
+  power-off, which isn't `yes`, so the combos are empty. Screenshot it only when the owner opened it.
+- A stored value the panel doesn't list shows as an empty combo (the battery idle sleep, a 300 s user value).
+  After the owner opened the panel, `action-critical-battery` had a user value `shutdown` where a reset had left
+  none: the panel seems to write the shown values back.
 
 The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kernel's rules are in
 `docs/kernel-interface.md`.
@@ -321,7 +337,7 @@ at 14 through idle while the keyboard light still went off.
    | `src/pyra_settings/` | `/usr/share/pyra-settings/` (private module, no dh-python) |
    | `data/org.pyra.settings.wake.policy` | `/usr/share/polkit-1/actions/`; `allow_any`/`allow_inactive` = `auth_admin` |
    | `data/pyra-settings-apply.service` | `/usr/lib/systemd/system/`; `dh_installsystemd` finds it there and enables it (`WantedBy=multi-user.target`) |
-   | `data/pyra-settings.desktop` | `/usr/share/applications/`; `Categories=Settings;` until NEXT 2.4 |
+   | `data/pyra-settings.desktop` | `/usr/share/applications/`; `Categories=GTK;Settings;HardwareSettings;` (NEXT 2.4): Control Center's Hardware group, like MATE's hardware panels. `Settings;` alone put it under Other (`/etc/xdg/menus/matecc.menu`) |
 
    - The unit has `ConditionPathExists=/etc/pyra-settings/pyra-settings.conf`: with no config it is skipped, not
      run. Nothing is shipped in `/etc`; the helper creates the directory on the first `set-wake`, and
