@@ -95,6 +95,19 @@ duplicating panels that already work.
   After the owner opened the panel, `action-critical-battery` had a user value `shutdown` where a reset had left
   none: the panel seems to write the shown values back.
 
+**Idle sleep action on the image** (release card, 2026-11-15, read with `Gio.Settings.get_default_value`, since
+user values hide defaults from `gsettings get`):
+
+- MATE's idle sleep runs `action-sleep-type-battery` / `-ac` once `sleep-computer-battery` / `-ac` runs out,
+  counted after `org.mate.session idle-delay`. Same enum as `action-critical-battery`.
+- Schema defaults on the card: `action-sleep-type-battery` `hibernate`, `-ac` `suspend` (upstream; no override
+  set either). `sleep-computer-battery` and `-ac` are `0`, so idle sleep is off until a user sets a timer.
+  `idle-delay` is 30 (minutes, Debian's default).
+- dragonbox-pyra fix 24's `99_pyra_power.gschema.override` now sets both sleep-type keys to `suspend` (owner,
+  2026-11-15); `idle-delay` stays at 30. In the next image. Checked by compiling the card's schemas with the new
+  override in a temp dir (`--strict`): `shutdown`, `suspend`, `suspend`.
+- The app doesn't write these keys (idle sleep is MATE's, dropped in 0.5).
+
 The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kernel's rules are in
 `docs/kernel-interface.md`.
 
