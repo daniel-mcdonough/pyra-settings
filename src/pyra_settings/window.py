@@ -998,7 +998,7 @@ class PyraSettingsWindow(Gtk.Window):
                 value, text = None, "\u2013"
             else:
                 value, text = self._fine_shown(key)
-            rows.append(SliderRow("fine-" + key, "Fine", text, st.fine_position(value, key), st.FINE_RANGES[key],
+            rows.append(SliderRow("fine-" + key, st.FINE_LABELS[key], text, st.fine_position(value, key), st.FINE_RANGES[key],
                                   lambda d, key=key: self._fine_step(key, d),
                                   lambda p, key=key: self._fine_drag(key, p),
                                   lambda h, key=key: self._fine_press(key, h), self._focus_row, n is not None))

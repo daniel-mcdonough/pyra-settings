@@ -264,6 +264,11 @@ FINE_RANGES = {
     "mouse.deadzone": (0, 150),
 }
 FINE_STEP = 5
+FINE_LABELS = {
+    "mouse.sensitivity": "Fine Pointer Speed",
+    "mouse.wheel.sensitivity": "Fine Scroll Speed",
+    "mouse.deadzone": "Fine Deadzone",
+}
 # What each Reset button sets back to default. Speed also takes the deadzones that have no row.
 NUB_SECTION_KEYS = {
     "left": ("nubs.left.x", "nubs.left.y", "nubs.left.click"),

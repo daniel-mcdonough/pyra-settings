@@ -186,6 +186,7 @@ class TestFineSliders(unittest.TestCase):
 
     def test_a_slider_under_every_speed_row(self):
         self.assertEqual(set(st.FINE_RANGES), {key for key, _l, _s, _o in st.SPEED_ROWS})
+        self.assertEqual(set(st.FINE_LABELS), set(st.FINE_RANGES))
         self.assertEqual(st.FINE_RANGES["mouse.sensitivity"], (10, 400))
         self.assertEqual(st.FINE_RANGES["mouse.wheel.sensitivity"], (10, 300))
         self.assertEqual(st.FINE_RANGES["mouse.deadzone"], (0, 150))

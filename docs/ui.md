@@ -160,11 +160,11 @@ agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every r
    right click".
 7. Header **Speed**.
 8. Choice **Pointer speed**: Slow 40 / Normal 75 / Fast 150 / Very fast 300 (`mouse.sensitivity`), then
-   slider **Fine**, 10 to 400.
-9. Choice **Scroll speed**: Slow 40 / Normal 75 / Fast 150 (`mouse.wheel.sensitivity`), then slider **Fine**,
-   10 to 300.
+   slider **Fine Pointer Speed**, 10 to 400.
+9. Choice **Scroll speed**: Slow 40 / Normal 75 / Fast 150 (`mouse.wheel.sensitivity`), then slider
+   **Fine Scroll Speed**, 10 to 300.
 10. Choice **Pointer deadzone**, subtitle "Raise it if the pointer drifts": Small 25 / Normal 50 / Large 80
-    (`mouse.deadzone`), then slider **Fine**, 0 to 150.
+    (`mouse.deadzone`), then slider **Fine Deadzone**, 0 to 150.
 11. Button **Speed defaults**, subtitle "Also the scroll, click and gamepad deadzones", action "Reset": the
     three keys above and `nubs.deadzone`, `mouse.wheel.deadzone`, `mouse.click.deadzone` to `default`. Those
     three have no row; this is the only way the app undoes them.
@@ -180,7 +180,8 @@ agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every r
 #### Fine sliders (NEXT 4.7, agreed 2026-11-15)
 
 The owner kept the presets and asked for fine control on all three speed rows. Each choice row gets a slider row
-right under it, always shown, labelled **Fine**, with the lock (it writes through `set-nubs` too).
+right under it, always shown, labelled **Fine Pointer Speed**, **Fine Scroll Speed** and **Fine Deadzone** (owner,
+2026-11-15, NEXT 4.24; at first just "Fine"), with the lock (it writes through `set-nubs` too).
 
 - Ranges: pointer speed 10-400, scroll speed 10-300, pointer deadzone 0-150, steps of 5. The helper takes more
   (`nubs.md`), but past these the pointer crosses the screen in a blink, or the deadzone eats most of the nub's

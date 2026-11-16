@@ -1,3 +1,10 @@
+pyra-settings (0.13) trixie; urgency=medium
+
+  * GUI: the Fine sliders are labelled Fine Pointer Speed, Fine Scroll Speed
+    and Fine Deadzone (owner, NEXT 4.24).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 15 Nov 2026 19:00:00 +0000
+
 pyra-settings (0.12) trixie; urgency=medium
 
   * GUI: Nubs page: a Fine slider under the pointer speed, scroll speed and
