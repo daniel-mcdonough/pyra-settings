@@ -136,7 +136,7 @@ None agreed. Each needs its own yes before work starts.
 | Screen idle dim: delay and depth | Delay: gsettings `org.mate.session idle-delay`. Depth: `PYRA_DIM_PERCENT` | Depth is hard-coded in the `pyra-idle-dim.service` unit; pyra-backlight must read it from a config file first |
 | CPU governor tune on/off (fix 16) | `pyra-governor-tune.service` | Only worth it with a reason to turn it off |
 | Status page: battery, charger, temperatures, CPU frequency | Read-only sysfs | None |
-| BTN1, the CPU board's user button | `user-buttons/wakeup_keys`, code 169 | Find where it is (NEXT) |
+| BTN1, the CPU board's user button | `user-buttons/wakeup_keys`, code 169 | **Out of v2** (owner, 2026-11-17): not on the keyboard or case, likely inside on the CPU board (`kernel-interface.md`); a wake switch users can't reach doesn't belong in the app |
 | Display rotation | MATE display panel | Probably stays in MATE |
 
 ### v2: agreed (owner, 2026-11-13)

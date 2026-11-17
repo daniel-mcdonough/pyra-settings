@@ -68,8 +68,14 @@ slept through; A, 102, woke). v1 shows no per-button names (`design.md`), so not
 ## `user-buttons`: BTN1
 
 One key, `BTN1`, code 169: the Letux Cortex 15 CPU board's "User Button" on `gpio3_83`, wake on by device tree
-(pyra-kernel `arch/arm/boot/dts/omap5-letux-cortex15-v5.0.dts`, node `BTN1`). Where it sits physically is
-unknown; see NEXT.
+(pyra-kernel `arch/arm/boot/dts/omap5-letux-cortex15-v5.0.dts`, node `BTN1`). In `/proc/interrupts` it is
+`48057000.gpio 19 Edge BTN1`; debugfs `gpio` lists it as `gpio-147`, input, active low, idle high.
+
+**Location: not found from outside the case** (owner, 2026-11-17, kernel without 0053). With the IRQ count and
+`evtest` on `user-buttons` logged, the owner pressed Usr1, Fn+Usr1 (Usr2) and the Pyra-logo key: no interrupt, no
+event. Those are keyboard-matrix keys, not BTN1. The line read idle high, so it isn't stuck. BTN1 is likely a
+switch on the CPU board, reachable only with the case open; not confirmed (the case wasn't opened). The helper
+never touches `user-buttons`, so BTN1's wake stays at the device tree default (on).
 
 ## `pyra-lid-wakeup`
 
