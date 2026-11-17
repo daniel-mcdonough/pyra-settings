@@ -309,7 +309,8 @@ page writes `~/.config/pyra-backlight.conf` as the user and runs `systemctl --us
   the page is built.
 - Ten buttons at 44 px fit: the page area is about 910 px wide at 1280x720.
 - A choice writes its key, keeps the file's other keys and sections, then reloads. After a save: "Saved" for 3 s.
-  The level applies at the next login, the depth at the next idle.
+  A fixed level is set at once (pyra-idle-dim at reload, pyra-backlight 0.7) and again at each login; Last sets
+  nothing now. The depth applies at the next idle.
 - File unreadable (not missing): the choice rows stay, greyed out; the status line's idle text says "Can't read
   the backlight settings: <error> (<file>)". A failed reload (pyra-idle-dim not running) says so in the status
   line for 8 s; the file is written either way.
