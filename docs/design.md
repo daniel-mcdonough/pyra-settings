@@ -1,16 +1,22 @@
 # Design: features and decisions
 
 Pyra Settings is a small GTK 3 app for the settings only the Pyra has. Version 1 covers suspend and wake: which
-buttons wake the machine, whether the lid wakes it, what the lid does and the critical-battery action.
-It ships after the next Pyra image, whose kernel carries dragonbox-pyra `patches/0053` (per-button wake control).
+buttons wake the machine, whether the lid wakes it, what the lid does and the critical-battery action. Version 2
+adds the nubs, the volume wheel, the screen dim depth and the keyboard light ("v2: agreed").
+Per-button wake needs [dragonbox-pyra](https://github.com/daniel-mcdonough/dragonbox-pyra) `patches/0053`, in
+the next Pyra image's kernel.
 
 The UI layout is defined in `docs/ui.md`. This file says what the app does and why, not how it looks.
 
 ## Status
 
-- v1 design settled. Helper, config file and boot apply written and tested on a fake sysfs. Packaged, installed
-  on the Pyra on a kernel without 0053. GUI written and run on the PC against fake trees; not yet tried on the
-  Pyra.
+- v1 design settled. Helper, config file and boot apply written and tested on a fake sysfs. GUI checked on the
+  Pyra with 0.4 and 0.5, on a kernel without 0053 (`ui.md`, "Checked on the Pyra"). Not yet run end to end on a
+  0053 kernel.
+- v2 pages built: Nubs (checked on the Pyra with 0.6, `nubs.md`), Volume wheel (checked with 0.9,
+  `volume-wheel.md`), Display & keyboard light (0.11). Package at 0.13.
+- Image: dragonbox-pyra prep fix 26 installs the package with the pyra-hacks fork 0.38+pyra3 and sets fix 12
+  aside. No pyra-settings release is pinned yet, so a default prep run leaves it out.
 - Kernel side done: 0053 is tested on `5.6.19-m4-kbdled-test`, not in `kernel-5.6.19-r2`. See
   `docs/kernel-interface.md`.
 

@@ -2,7 +2,8 @@
 
 A small GTK 3 settings app for the things only the DragonBox Pyra has: which buttons wake it from suspend, what
 the nubs do, how the volume wheel maps to speaker and headphone volume, how far the screen dims when idle, and the
-keyboard light level at login. It runs on the dragonbox-pyra image (Debian trixie, MATE, X11) and ships as an
+keyboard light level at login. It runs on the
+[dragonbox-pyra](https://github.com/daniel-mcdonough/dragonbox-pyra) image (Debian trixie, MATE, X11) and ships as an
 `Architecture: all` `.deb`.
 
 ![Pyra Settings on the Pyra's 1280x720 screen, Nubs page](docs/images/pyra-settings.png)
