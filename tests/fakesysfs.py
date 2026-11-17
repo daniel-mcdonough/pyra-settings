@@ -1,4 +1,4 @@
-"""A fake /sys/devices/platform tree with the Pyra's wake devices, as read on the release card
+"""A fake /sys/devices/platform tree with the Pyra's wake devices, as read on the release image
 (docs/kernel-interface.md).
 
     python3 tests/fakesysfs.py <dir> [--no-0053]

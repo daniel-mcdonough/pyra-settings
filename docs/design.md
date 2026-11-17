@@ -4,13 +4,13 @@ Pyra Settings is a small GTK 3 app for the settings only the Pyra has. Version 1
 buttons wake the machine, whether the lid wakes it, what the lid does and the critical-battery action.
 It ships after the next Pyra image, whose kernel carries dragonbox-pyra `patches/0053` (per-button wake control).
 
-The UI layout is the owner's design, in `docs/ui.md`. This file says what the app does and why, not how it looks.
+The UI layout is defined in `docs/ui.md`. This file says what the app does and why, not how it looks.
 
 ## Status
 
-- Design agreed for v1 (2026-11-12). Helper, config file and boot apply written and tested on a fake sysfs
-  (NEXT 1.1). Packaged (NEXT 1.2), installed on the Pyra on a kernel without 0053. GUI written and run on the PC
-  against fake trees (NEXT 1.3); not yet tried on the Pyra.
+- v1 design settled. Helper, config file and boot apply written and tested on a fake sysfs. Packaged, installed
+  on the Pyra on a kernel without 0053. GUI written and run on the PC against fake trees; not yet tried on the
+  Pyra.
 - Kernel side done: 0053 is tested on `5.6.19-m4-kbdled-test`, not in `kernel-5.6.19-r2`. See
   `docs/kernel-interface.md`.
 
@@ -30,7 +30,7 @@ The UI layout is the owner's design, in `docs/ui.md`. This file says what the ap
 | Decision | Choice | Why |
 |---|---|---|
 | v1 scope | Wake buttons, lid wake, lid action, critical battery | To a user they are one feature: what happens when the Pyra is closed and put in a bag |
-| Idle sleep | Not in the app; MATE's Power Management panel only (owner, 2026-11-13, NEXT 1.6) | Not Pyra-specific. MATE starts the sleep timer only once the session is idle (`org.mate.session idle-delay`, 30 min from Debian's `10_mate-common.gschema.override`), so "5 min" meant about 35. Showing the real time would mean subtracting a delay that also drives the screen dim and lock |
+| Idle sleep | Not in the app; MATE's Power Management panel only | Not Pyra-specific. MATE starts the sleep timer only once the session is idle (`org.mate.session idle-delay`, 30 min from Debian's `10_mate-common.gschema.override`), so "5 min" meant about 35. Showing the real time would mean subtracting a delay that also drives the screen dim and lock |
 | polkit default | `auth_admin_keep`: password once, kept for a few minutes | Every later root-level setting inherits it. `yes` would let any process in the session change root settings |
 | Release timing | After the next Pyra image, which carries the 0053 kernel | Per-button wake needs 0053 |
 | Kernels without 0053 | Keep a one-switch fallback through `power/wakeup` | It costs one file-exists check, and covers the package on an older image |
@@ -42,7 +42,7 @@ The UI layout is the owner's design, in `docs/ui.md`. This file says what the ap
 | Power button wake | Never exposed; the helper refuses it | With it and the game buttons off, only the RTC can wake the machine |
 | Where MATE settings live | Custom app, listed in MATE Control Center; pulls in only the MATE settings that interact with wake | See "MATE or a custom app" |
 | Repo | Own repo, packaged as a `.deb`, installed by a numbered fix in the dragonbox-pyra image build | Own version and release cycle, like pyra-backlight |
-| UI layout | The owner's design, `docs/ui.md` | Follows the GTK theme; no app-specific themes |
+| UI layout | Defined in `docs/ui.md` | Follows the GTK theme; no app-specific themes |
 
 ## MATE or a custom app
 
@@ -62,9 +62,9 @@ Pyra-only ones, and leaves everything else in MATE.
 |---|---|---|
 | Wake buttons, lid wake | Pyra Settings only | Pyra-only and root-level; MATE has no concept of it |
 | Lid action (`button-lid-battery`, `button-lid-ac`) | Both | "Lid suspends" plus shoulder buttons that wake is the bag problem: the two must be seen together |
-| Idle sleep (`sleep-computer-battery`, `sleep-computer-ac`) | MATE only (owner, 2026-11-13) | See "Idle sleep" in Decisions |
+| Idle sleep (`sleep-computer-battery`, `sleep-computer-ac`) | MATE only | See "Idle sleep" in Decisions |
 | Critical battery action | Both; Pyra Settings offers a restricted set | Hibernate is unsupported and suspend drains the cell |
-| Display, sound, keyboard layout, mouse and touchpad, appearance, screensaver, notifications | MATE only | Nothing Pyra-specific. No "Open in MATE" buttons (owner, 2026-11-12); MATE Control Center is the launcher |
+| Display, sound, keyboard layout, mouse and touchpad, appearance, screensaver, notifications | MATE only | Nothing Pyra-specific. No "Open in MATE" buttons; MATE Control Center is the launcher |
 | Screen brightness | The Pyra Brightness panel applet | It already does it through logind |
 
 The launcher half of the repo's name is the Control Center entry: the app sits next to MATE's panels, without
@@ -80,7 +80,7 @@ duplicating panels that already work.
 | Lid action, battery and AC | gsettings `org.mate.power-manager button-lid-battery`, `button-lid-ac` | GUI, as the user | `blank` |
 | Critical battery action | gsettings `org.mate.power-manager action-critical-battery` | GUI, as the user | `shutdown` (image fix 24) |
 
-**Critical battery on the image** (checked on the Pyra, 2026-11-15):
+**Critical battery on the image** (verified on the device):
 
 - The key's enum (`gsettings range`) is `blank`, `suspend`, `shutdown`, `hibernate`, `interactive`, `nothing`. A
   `gsettings set` of `shutdown` sticks; a value outside the enum is refused (exit 1, value unchanged). The
@@ -90,21 +90,21 @@ duplicating panels that already work.
   image's `CanHibernate` and `CanHybridSleep` are `na`, so no combo offers Hibernate. In the desktop session the
   battery tab shows "When battery power is critically low: Shutdown".
 - The panel run from ssh offers nothing: outside the seat session logind answers `challenge` for suspend and
-  power-off, which isn't `yes`, so the combos are empty. Screenshot it only when the owner opened it.
+  power-off, which isn't `yes`, so the combos are empty. Check the panel only in the desktop session.
 - A stored value the panel doesn't list shows as an empty combo (the battery idle sleep, a 300 s user value).
-  After the owner opened the panel, `action-critical-battery` had a user value `shutdown` where a reset had left
+  After the panel was opened in the desktop session, `action-critical-battery` had a user value `shutdown` where a reset had left
   none: the panel seems to write the shown values back.
 
-**Idle sleep action on the image** (release card, 2026-11-15, read with `Gio.Settings.get_default_value`, since
-user values hide defaults from `gsettings get`):
+**Idle sleep action on the image** (read on a release image with `Gio.Settings.get_default_value`, since user
+values hide defaults from `gsettings get`):
 
 - MATE's idle sleep runs `action-sleep-type-battery` / `-ac` once `sleep-computer-battery` / `-ac` runs out,
   counted after `org.mate.session idle-delay`. Same enum as `action-critical-battery`.
-- Schema defaults on the card: `action-sleep-type-battery` `hibernate`, `-ac` `suspend` (upstream; no override
+- Schema defaults on the release image: `action-sleep-type-battery` `hibernate`, `-ac` `suspend` (upstream; no override
   set either). `sleep-computer-battery` and `-ac` are `0`, so idle sleep is off until a user sets a timer.
   `idle-delay` is 30 (minutes, Debian's default).
-- dragonbox-pyra fix 24's `99_pyra_power.gschema.override` now sets both sleep-type keys to `suspend` (owner,
-  2026-11-15); `idle-delay` stays at 30. In the next image. Checked by compiling the card's schemas with the new
+- dragonbox-pyra fix 24's `99_pyra_power.gschema.override` now sets both sleep-type keys to `suspend`;
+  `idle-delay` stays at 30. In the next image. Checked by compiling the release image's schemas with the new
   override in a temp dir (`--strict`): `shutdown`, `suspend`, `suspend`.
 - The app doesn't write these keys (idle sleep is MATE's, dropped in 0.5).
 
@@ -119,16 +119,15 @@ The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kerne
   (`of_node/<node>/label`). The code table is only the fallback for names.
 - Offer the preset "everything except the shoulder buttons" (`102-109,272-273`), the motivating case.
 - Warn when the lid action is `suspend` and a shoulder button still wakes the machine.
-- No warning when only the power button is left to wake it: the always-on Power button row says it (owner,
-  2026-11-12).
+- No warning when only the power button is left to wake it: the always-on Power button row says it.
 - Say that a change takes effect at the next suspend.
-- Critical battery: offer `shutdown` only (owner, 2026-11-12). Never `hibernate`, `suspend` or `nothing`.
+- Critical battery: offer `shutdown` only. Never `hibernate`, `suspend` or `nothing`.
 - Lid action: one control, writing both the `-battery` and `-ac` key. A value the app doesn't
   offer, or differing battery and AC values, shows as "Custom" and is never rewritten unless the user picks one.
 
 ## Later candidates (v2 and on)
 
-None agreed. Each needs its own yes before work starts.
+None decided. Each needs a decision before work starts.
 
 | Candidate | Mechanism | Work needed first |
 |---|---|---|
@@ -136,24 +135,24 @@ None agreed. Each needs its own yes before work starts.
 | Screen idle dim: delay and depth | Delay: gsettings `org.mate.session idle-delay`. Depth: `PYRA_DIM_PERCENT` | Depth is hard-coded in the `pyra-idle-dim.service` unit; pyra-backlight must read it from a config file first |
 | CPU governor tune on/off (fix 16) | `pyra-governor-tune.service` | Only worth it with a reason to turn it off |
 | Status page: battery, charger, temperatures, CPU frequency | Read-only sysfs | None |
-| BTN1, the CPU board's user button | `user-buttons/wakeup_keys`, code 169 | **Out of v2** (owner, 2026-11-17): not on the keyboard or case, likely inside on the CPU board (`kernel-interface.md`); a wake switch users can't reach doesn't belong in the app |
+| BTN1, the CPU board's user button | `user-buttons/wakeup_keys`, code 169 | **Out of v2**: not on the keyboard or case, likely inside on the CPU board (`kernel-interface.md`); a wake switch users can't reach doesn't belong in the app |
 | Display rotation | MATE display panel | Probably stays in MATE |
 
-### v2: agreed (owner, 2026-11-13)
+### v2: agreed
 
 With idle sleep gone, suspend and wake alone is thin. The app becomes the Pyra's hardware settings, none of which
-MATE covers. Work items: NEXT 4.x.
+MATE covers.
 
 | Setting | Mechanism today | Work needed first |
 |---|---|---|
 | Nubs: what each axis does, clicks, sensitivity, deadzones | `/etc/pyrainput.cfg`, root daemon funkeymonkey-pyrainput, `systemctl reload pyrainput` | Done: helper `set-nubs` (`nubs.md`); profiles out of scope. GUI after the layout |
-| Screen dimming: depth and delay | Depth `[screen] dim` in the per-user config file (pyra-backlight 0.4); delay `org.mate.session idle-delay`, shown, set in MATE (below) | Decided and built (4.2); the page's layout in `ui.md` |
-| Keyboard light: level at login, off when idle | `pyra::kbd_backlight` LED; pyra-idle-dim with a per-user config file (below) | Decided (4.3); pyra-backlight change (NEXT 4.16), then the page's layout in `ui.md` (NEXT 4.17) |
-| Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`, `hsrange`), root daemon `pyra_volumed`, helper `set-volume` (`docs/volume-wheel.md`) | Helper done (4.4); a daemon that reads the file (pyra-hacks fork 0.38+pyra2 or later, not fix 12's), check on the Pyra (4.10), page built (4.11, `ui.md` "Volume wheel"), the fork's flutter fixed in 0.38+pyra3 (4.12); page on the Pyra next (4.13) |
+| Screen dimming: depth and delay | Depth `[screen] dim` in the per-user config file (pyra-backlight 0.4); delay `org.mate.session idle-delay`, shown, set in MATE (below) | Decided and built; the page's layout in `ui.md` |
+| Keyboard light: level at login, off when idle | `pyra::kbd_backlight` LED; pyra-idle-dim with a per-user config file (below) | Decided; pyra-backlight change, then the page's layout in `ui.md` |
+| Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`, `hsrange`), root daemon `pyra_volumed`, helper `set-volume` (`docs/volume-wheel.md`) | Helper done; a daemon that reads the file (pyra-hacks fork 0.38+pyra2 or later, not fix 12's), check on the Pyra, page built (`ui.md` "Volume wheel"), the fork's flutter fixed in 0.38+pyra3; page on the Pyra next |
 
 The keyboard light and screen dim rows above are superseded by this table.
 
-### Keyboard light (owner, 2026-11-14, NEXT 4.3)
+### Keyboard light
 
 **The light today.** `/sys/class/leds/pyra::kbd_backlight` on the m4-kbdled kernel (leds-pwm on `pwm8`, linear
 0-100, 0 is off, no default trigger). The Fn keys (`pyra-kbdlight.sh`, image fix 15) and the pyra-backlight applet
@@ -172,20 +171,20 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
 - **Idle.** When the session goes idle (the same `org.mate.session idle-delay` as the screen dim), the light goes
   off; on activity it comes back to the level it had, only if it is still 0 (nobody changed it meanwhile, the
   screen's rule). A light already at 0 is left alone. Not a user setting.
-- **Storage.** A per-user INI file, `~/.config/pyra-backlight.conf`, shared with the screen dim depth (NEXT 4.2):
+- **Storage.** A per-user INI file, `~/.config/pyra-backlight.conf`, shared with the screen dim depth:
   owned by pyra-backlight, read by pyra-idle-dim, written by the app as the user. No pkexec, no root helper.
   systemd-backlight's own save and restore stay as they are.
-- **Login screen** (owner, 2026-11-16, NEXT 4.26). A fixed 20% at every greeter, at boot and after each logout,
+- **Login screen.** A fixed 20% at every greeter, at boot and after each logout,
   whatever the session had. No user setting (no user is known there) and no app page. Home: pyra-backlight
   (not an image fix), so installed systems get it too.
-- **Kept as is, simplified once** (owner, 2026-11-16, NEXT 4.30). Asked whether the layers were overcomplicated:
+- **Kept as is, simplified once.** The layers were reviewed for whether they were overcomplicated:
   "last level" stays (Fn-key changes carry over to the next login, which needs the `kbd-level` record);
   systemd-backlight's keyboard save and restore stay (dead weight since 0.5, since the greeter script overwrites
   the restore at every boot, but harmless, and masking it from a package means owning a unit that isn't ours);
   the login screen's level now lives in one place, the schema override (pyra-backlight 0.7). A level saved in
   the app is set at once, by pyra-idle-dim at reload, not by the app, so the light keeps one writer.
 
-**Mechanism (pyra-backlight 0.3, NEXT 4.16; checked on the Pyra 2026-11-14).**
+**Mechanism (pyra-backlight 0.3; verified on the device).**
 
 - File: `[keyboard] level = last` or an integer 0-100 (the app offers only the nine steps). `[screen]`: see
   "Screen dimming". A missing file or key means the defaults; a bad value is logged and treated as missing.
@@ -209,16 +208,16 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
 - Writes go through logind `Session.SetBrightness("leds", "pyra::kbd_backlight", v)`, as the applet's do. No LED
   (a kernel without the m4-kbdled change) means no keyboard handling, no error.
 - It rereads the file on SIGHUP; the unit gets `ExecReload=kill -HUP $MAINPID`, and the app runs
-  `systemctl --user reload pyra-idle-dim` after a save. Since 0.7 (NEXT 4.30; checked on the Pyra 2026-11-16) a
+  `systemctl --user reload pyra-idle-dim` after a save. Since 0.7 (verified on the device) a
   reload that changes `[keyboard] level` to a number sets the light at once; if the light is off for idle, the
   new level is what comes back at wake. An unchanged level (a save of the screen dim only) leaves alone a light
   changed with the Fn keys, and "last" sets nothing (it is the current level). Before the login level is set,
   the reload only stores the level, which `login()` then sets.
 - Ticking MATE's "Reduce keyboard backlight brightness" (battery) or "Dim display when idle" (AC) hands the light
-  back to MATE, which then fights pyra-idle-dim. Not handled; the page can say so (layout, 4.17).
-- **Unlock dialog** (owner, 2026-11-16, NEXT 4.29; pyra-backlight 0.8). While mate-screensaver's unlock dialog
+  back to MATE, which then fights pyra-idle-dim. Not handled; the page can say so (layout).
+- **Unlock dialog** (pyra-backlight 0.8). While mate-screensaver's unlock dialog
   is up the session is still idle (Presence status 3), so until 0.8 the password was typed with the keyboard light
-  off and the screen dimmed (kept as is in 4.19). Chosen: light and screen back to their saved levels while the
+  off and the screen dimmed (earlier left as is). Chosen: light and screen back to their saved levels while the
   dialog is up, off and dimmed again if it closes without an unlock. Facts, mate-screensaver 1.26.2 source and
   the Pyra: D-Bus has only `ActiveChanged` and the methods `GetActive`, `GetActiveTime`, no lock state (its
   `auth-request-begin`/`-end` are internal GObject signals, not GNOME's old `AuthenticationRequestBegin`). The
@@ -237,7 +236,7 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   reading input devices (needs the `input` group). On idle the bus shows Presence `StatusChanged 3`, then about
   10 s later `ActiveChanged true`; any input ends both together (`ActiveChanged false`, status 0) unless the lock
   is engaged.
-- **Login screen (pyra-backlight 0.5, NEXT 4.26; checked on the Pyra 2026-11-16).** Measured: neither logind,
+- **Login screen (pyra-backlight 0.5; verified on the device).** Measured: neither logind,
   lightdm nor pyra-idle-dim's stop touches the light at a logout; the greeter starts with the session's level.
   What turned it off was pyra-idle-dim itself, started in the greeter's session as the `lightdm` user (the user
   unit is enabled globally): 30 s in, with no `org.mate.PowerManager`, it applied "last level" from lightdm's own
@@ -249,7 +248,7 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   always exits 0 (lightdm doesn't start the greeter if the script fails). lightdm reads the
   snippet only at its own start, so a new install needs a reboot. At boot systemd-backlight's restore (22.2 s)
   finishes before lightdm starts (23.0 s), so the script wins. The stale lightdm record is left; nothing reads it.
-- **Flash at login (NEXT 4.27, pyra-backlight 0.6).** Cause, from mate-power-manager 1.26.1
+- **Flash at login (pyra-backlight 0.6).** Cause, from mate-power-manager 1.26.1
   `src/gpm-kbd-backlight.c`: `gpm_kbd_backlight_init` ends with `evaluate_power_source_and_set()`, which on AC
   sets the light to `org.mate.power-manager kbd-brightness-on-ac` (default 100; 99 on this LED, as
   `gpm_discrete_from_percent` scales by `max - 1`). It ramps one UPower `SetBrightness` per step from the current
@@ -258,18 +257,18 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   in or out changed nothing in the log (UPower 1.90.9). Resume on AC is untested. `gpm_kbd_backlight_set` writes
   nothing when the target is the current level, which holds for levels up to 49 (above that its percent
   rounding moves it one step). Measured (50 ms poll, two logins on AC): 20 (greeter) → 62 → 99 within 0.2 s of
-  the name appearing, then pyra-idle-dim's 10 about 0.8 s later, so above the greeter level for about 1 s. Fix
-  (owner, 2026-11-16): pyra-backlight 0.6 ships `60_pyra-backlight.gschema.override` with
+  the name appearing, then pyra-idle-dim's 10 about 0.8 s later, so above the greeter level for about 1 s. Fix:
+  pyra-backlight 0.6 ships `60_pyra-backlight.gschema.override` with
   `kbd-brightness-on-ac=20`, which `pyra-greeter-kbd-light` reads as its level (0.7; in 0.6 a second copy), so MATE's set at login is a no-op and the
   light steps from 20 straight to the user's level. Only the default changes; a user's own gsettings value wins.
-  Side effect: a resume on AC would go to 20, not 99. Checked on the Pyra 2026-11-16 (owner): no flash; journal
+  Side effect: a resume on AC would go to 20, not 99. Verified on the device: no flash; journal
   `keyboard 20 -> 20` with level 20.
 - The image's `org.mate.screensaver lock-delay` is 1 (minute): input in the first minute of the blank screen
   ends it with no lock and no dialog, and light and screen come back at once.
 - A change made while the light is off for idle is kept at wake (checked with a write of 10 during idle). An Fn
   key can't make one: the key press wakes the session first.
 
-### Screen dimming (owner, 2026-11-14, NEXT 4.2)
+### Screen dimming
 
 **The screen today.** `/sys/class/backlight/backlight`, 0-15 (`max_brightness` 15); 0 turns the panel's light
 off, so the applet's slider stops at 1. pyra-idle-dim drops it to a share of the maximum when the session goes
@@ -294,7 +293,7 @@ idle and puts it back on activity, only if nobody changed it meanwhile. Through 
 - **App.** The page writes `[screen] dim` as the user and runs `systemctl --user reload pyra-idle-dim`, as for
   the keyboard light. No pkexec. Layout in `ui.md` first.
 
-**Mechanism (pyra-backlight 0.4, released 2026-11-15 as `v0.4`; checked on the Pyra 2026-11-14).** With no file
+**Mechanism (pyra-backlight 0.4, released as `v0.4`; verified on the device).** With no file
 it logs "dims to 20% of maximum". With `dim = 40` an idle (delay set to 1 min for the test) took the screen 14 -> 6
 and the wake put back 14. `dim = 0` on reload was logged and fell back to 20%. With `dim = off` the screen stayed
 at 14 through idle while the keyboard light still went off.
@@ -304,7 +303,7 @@ at 14 through idle while the keyboard light still went off.
 | Setting | Why it stays out |
 |---|---|
 | Power button wake | With it and the game buttons off, only the RTC can wake the machine. The helper refuses it, not just the UI |
-| Software charge control (the charge ladder in `pyra-thermal.sh`) | Decided 2026-10-29: no software charge control, the TS pin alone |
+| Software charge control (the charge ladder in `pyra-thermal.sh`) | By design: no software charge control, the TS pin alone |
 | Thermal ladder rungs | A safety mechanism. Read-only status at most |
 | Undervolt (`pyra-undervolt`) | Developer-only; a bad value crashes the machine |
 | Charger input current (`/etc/default/pyra-charge-current`) | Hardware-capped, but no user need found |
@@ -335,7 +334,7 @@ at 14 through idle while the keyboard light still went off.
 1. **GUI**, `pyra-settings`, Python + GTK 3, runs as the user. Reads sysfs directly (the files are world-readable)
    to show live state. Writes gsettings for the per-user settings. Never writes sysfs.
 
-   As written (NEXT 1.3):
+   As written:
    - `src/pyra_settings/state.py` holds everything testable without GTK (sysfs reading, presets, groups, the
      warning, "Custom", helper argv, exit-code messages; `tests/test_state.py`). `window.py` is the GTK side.
    - Wake state read from sysfs: `wake` is `wakeup_keys` ∩ `keys` with `power/wakeup=enabled`, empty with it
@@ -368,12 +367,12 @@ at 14 through idle while the keyboard light still went off.
    - refuses the power button;
    - falls back to `power/wakeup` without 0053 (on if any game button is chosen, off if none), and logs one line.
 
-   As written (NEXT 1.1):
+   As written:
    - `set-wake game-buttons <codes>|none` takes a kernel bitmap list (`102-109,272-273`), writes `wakeup_keys` as
      a sorted comma list, then `power/wakeup=enabled` (a previous "none" left it disabled). `none` writes
-     `power/wakeup=disabled` only, until NEXT 2.2. Code 116 (`KEY_POWER`) is refused even if `keys` lists it.
+     `power/wakeup=disabled` only, while an empty `wakeup_keys` write is untested. Code 116 (`KEY_POWER`) is refused even if `keys` lists it.
    - `set-wake lid off` writes `power/wakeup=disabled`, not an empty `wakeup_switches`: the lid device has one
-     registered input, so it is equivalent, and the empty write is untested (NEXT 2.2).
+     registered input, so it is equivalent, and the empty write is untested.
    - Order: validate everything, write sysfs, then replace the config atomically (`.new` + rename, mode 0644). A
      refused or failed sysfs write leaves the config untouched.
    - `apply` applies each `[wake]` key independently, logs and skips a bad one, ignores unknown keys, never writes
@@ -402,7 +401,7 @@ at 14 through idle while the keyboard light still went off.
 6. **Packaging**: one `.deb` (GUI, helper, polkit policy, unit, `.desktop` file). The dragonbox-pyra image build
    installs it as a numbered fix.
 
-   As built (NEXT 1.2), package `pyra-settings`, `Architecture: all`, plain `dh` with `debian/install`:
+   As built, package `pyra-settings`, `Architecture: all`, plain `dh` with `debian/install`:
 
    | Source | Installed at |
    |---|---|
@@ -411,7 +410,7 @@ at 14 through idle while the keyboard light still went off.
    | `src/pyra_settings/` | `/usr/share/pyra-settings/` (private module, no dh-python) |
    | `data/org.pyra.settings.wake.policy` | `/usr/share/polkit-1/actions/`; `allow_any`/`allow_inactive` = `auth_admin` |
    | `data/pyra-settings-apply.service` | `/usr/lib/systemd/system/`; `dh_installsystemd` finds it there and enables it (`WantedBy=multi-user.target`) |
-   | `data/pyra-settings.desktop` | `/usr/share/applications/`; `Categories=GTK;Settings;HardwareSettings;` (NEXT 2.4): Control Center's Hardware group, like MATE's hardware panels. `Settings;` alone put it under Other (`/etc/xdg/menus/matecc.menu`). `Comment=Hardware settings for the Pyra` (the tooltip there and in the menu; general so new pages don't make it stale), `Keywords=` lists each page's terms (NEXT 2.8) |
+   | `data/pyra-settings.desktop` | `/usr/share/applications/`; `Categories=GTK;Settings;HardwareSettings;`: Control Center's Hardware group, like MATE's hardware panels. `Settings;` alone put it under Other (`/etc/xdg/menus/matecc.menu`). `Comment=Hardware settings for the Pyra` (the tooltip there and in the menu; general so new pages don't make it stale), `Keywords=` lists each page's terms |
 
    - The unit has `ConditionPathExists=/etc/pyra-settings/pyra-settings.conf`: with no config it is skipped, not
      run. Nothing is shipped in `/etc`; the helper creates the directory on the first `set-wake`, and
@@ -420,9 +419,9 @@ at 14 through idle while the keyboard light still went off.
      and skipped in a chroot image build.
    - Depends: `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, all on the image.
    - Lintian: one warning, no manpage for `/usr/bin/pyra-settings`.
-   - Checked by the owner on the Pyra (0.1, 2026-11-12): "Pyra Settings" is listed in MATE Control Center with
+   - Verified on the device (0.1): "Pyra Settings" is listed in MATE Control Center with
      `Categories=Settings;` and opens the stub window; `pkexec … set-wake power on` shows the mate-polkit prompt,
      then the refusal, and a second run within a few minutes doesn't prompt (`auth_admin_keep` works).
 
-Names: the brief in the private notes used `pyra-config`. They are `pyra-settings` here so the package, helper,
+Names: an earlier draft used `pyra-config`. They are `pyra-settings` here so the package, helper,
 config, unit and polkit action match the app's name.

@@ -3,7 +3,9 @@
 ## Off-device
 
 - The helper runs against a fake sysfs tree (a temp directory with `keys`, `wakeup_keys`, `power/wakeup`), with
-  the sysfs and config roots overridable only from the test harness, never from the command line `pkexec` runs.
+  the sysfs and config roots overridable only from the test suite, never from the command line `pkexec` runs.
+  `wakeup_keys` comes from 0053, a kernel patch in the dragonbox-pyra image (see `kernel-interface.md`); the fake
+  tree can be built with or without it.
 - The fake tree is `tests/fakesysfs.py`: `build(root, with_0053=True)` in tests, or `python3 tests/fakesysfs.py
   <dir> [--no-0053]` to make one for the GUI. Tests point the helper at it with `mock.patch.object(helper,
   "SYSFS_ROOT", …)` and `CONFIG_PATH`, after loading `helper/pyra-settings-helper` with `SourceFileLoader` (no
@@ -70,8 +72,8 @@ can't be checked (`test_kernel_einval_leaves_config`).
 
 ## On the Pyra: does a button wake it?
 
-A wake test proves something only with the owner at the Pyra pressing buttons. With nobody pressing, every round
-just ends at the RTC timer. Check before starting one.
+A wake test needs someone at the Pyra pressing buttons. With nobody pressing, every round just ends at the RTC
+timer and proves nothing.
 
 1. Run the test as a detached unit (`systemd-run --unit=… --collect script.sh`), because the ssh session dies at
    suspend. Give 40 to 60 s of lead time.
@@ -85,7 +87,7 @@ just ends at the RTC timer. Check before starting one.
 
 ## On the Pyra: idle, screensaver and lock by script
 
-Warn the owner first: the screen blanks and locks. Set `org.mate.session idle-delay` to 1 and put it back after.
+The screen blanks and locks during this test. Set `org.mate.session idle-delay` to 1 and put it back after.
 
 - After setting the delay, send one input event
   (an XTest key through `ctypes` on `libXtst.so.6`; no xdotool on the image), or the session never goes idle if X

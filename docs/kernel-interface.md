@@ -1,8 +1,9 @@
 # Kernel interface: wake sources
 
-Facts read on the release card on 2026-11-12, unless marked otherwise. Sources in dragonbox-pyra:
-`docs/troubleshooting.md` ("Every game button wakes the machine"), `docs/kernel-changes.md` (0053 entry),
-`docs/verification-log.md` (2026-11-12), `patches/0053-input-gpio-keys-choose-wakeup-buttons-from-sysfs.patch`.
+Facts read on a Pyra running the dragonbox-pyra release image, unless marked otherwise. 0053 is a kernel patch in
+the dragonbox-pyra image that lets userspace choose which gpio-keys buttons wake the system. Sources in
+dragonbox-pyra: `docs/troubleshooting.md` ("Every game button wakes the machine"), `docs/kernel-changes.md` (0053
+entry), `docs/verification-log.md`, `patches/0053-input-gpio-keys-choose-wakeup-buttons-from-sysfs.patch`.
 
 ## `wakeup_keys` and `wakeup_switches` (patch 0053)
 
@@ -61,7 +62,7 @@ u32).
 
 The shoulder buttons' labels are `Left-Shoulder-Top`, `Left-Shoulder-Bottom`, `Right-Shoulder-Top` and
 `Right-Shoulder-Bottom`: the names on their `/proc/interrupts` lines, where each press raised only its own count
-(dragonbox-pyra `docs/troubleshooting.md`, 2026-11-12). The other ten labels aren't recorded. The code table's
+(dragonbox-pyra `docs/troubleshooting.md`). The other ten labels aren't recorded. The code table's
 shoulder rows come from the same tests and from the 0053 wake test (left shoulder top, 126, left out of the set,
 slept through; A, 102, woke). v1 shows no per-button names (`design.md`), so nothing waits on the rest.
 
@@ -71,9 +72,8 @@ One key, `BTN1`, code 169: the Letux Cortex 15 CPU board's "User Button" on `gpi
 (pyra-kernel `arch/arm/boot/dts/omap5-letux-cortex15-v5.0.dts`, node `BTN1`). In `/proc/interrupts` it is
 `48057000.gpio 19 Edge BTN1`; debugfs `gpio` lists it as `gpio-147`, input, active low, idle high.
 
-**Location: not found from outside the case** (owner, 2026-11-17, kernel without 0053). With the IRQ count and
-`evtest` on `user-buttons` logged, the owner pressed Usr1, Fn+Usr1 (Usr2) and the Pyra-logo key: no interrupt, no
-event. Those are keyboard-matrix keys, not BTN1. The line read idle high, so it isn't stuck. BTN1 is likely a
+**Location: not found from outside the case** (tested on a kernel without 0053). With the IRQ count and `evtest`
+on `user-buttons` logged, pressing Usr1, Fn+Usr1 (Usr2) and the Pyra-logo key gave no interrupt and no event. Those are keyboard-matrix keys, not BTN1. The line read idle high, so it isn't stuck. BTN1 is likely a
 switch on the CPU board, reachable only with the case open; not confirmed (the case wasn't opened). The helper
 never touches `user-buttons`, so BTN1's wake stays at the device tree default (on).
 

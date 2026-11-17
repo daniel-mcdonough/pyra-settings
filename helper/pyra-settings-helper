@@ -1,14 +1,13 @@
 #!/usr/bin/python3 -I
-"""pyra-settings-helper: the root half of Pyra Settings (NEXT 1.1).
+"""pyra-settings-helper: the root half of Pyra Settings.
 
 Run through pkexec (polkit action org.pyra.settings.wake) by the GUI, and as root by
 pyra-settings-apply.service at boot. Commands:
 
     set-wake game-buttons <codes>|none   codes: a kernel bitmap list, e.g. 102-109,272-273
     set-wake lid on|off
-    set-nubs <key>=<value>...            edit the nub keys of /etc/pyrainput.cfg and reload pyrainput (NEXT 4.1)
+    set-nubs <key>=<value>...            edit the nub keys of /etc/pyrainput.cfg and reload pyrainput
     set-volume <key>=<value>...          edit cal, range, hsrange in /etc/pyra_volumed.conf and restart pyra_volumed
-                                         (NEXT 4.4)
     apply                                reapply the config file to sysfs
 
 set-wake writes sysfs first and the config file only if every sysfs write succeeded, so a write the kernel
@@ -149,7 +148,7 @@ def apply_game_buttons(codes):
     check_game_codes(dev, codes)
     wakeup = os.path.join(dev, "power", "wakeup")
     if not codes:
-        # "None" goes through power/wakeup until an empty wakeup_keys write is tested (NEXT 2.2).
+        # "None" goes through power/wakeup until an empty wakeup_keys write is tested.
         write_attr(wakeup, "disabled")
     elif has_0053(dev):
         write_attr(os.path.join(dev, "wakeup_keys"), format_list(codes))
@@ -165,7 +164,7 @@ def apply_lid(on):
     wakeup = os.path.join(dev, "power", "wakeup")
     if not on:
         # The lid device has one registered input, the lid switch, so power/wakeup covers it, and an empty
-        # wakeup_switches write is as untested as an empty wakeup_keys one (NEXT 2.2).
+        # wakeup_switches write is as untested as an empty wakeup_keys one.
         write_attr(wakeup, "disabled")
         return
     switches = os.path.join(dev, "wakeup_switches")

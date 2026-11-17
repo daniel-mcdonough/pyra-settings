@@ -1,4 +1,4 @@
-"""The GUI's logic without GTK (NEXT 1.3): sysfs state, presets and groups, the warning, gsettings choices, helper
+"""The GUI's logic without GTK: sysfs state, presets and groups, the warning, gsettings choices, helper
 arguments and exit codes."""
 
 import os
@@ -206,7 +206,7 @@ IMAGE_LINES = IMAGE_CFG.splitlines(keepends=True)
 
 
 class NubsTest(unittest.TestCase):
-    """The Nubs page's reading and changes (NEXT 4.6, docs/ui.md "Nubs")."""
+    """The Nubs page's reading and changes (docs/ui.md "Nubs")."""
 
     def setUp(self):
         os.environ.pop(st.HELPER_ENV, None)
@@ -317,7 +317,7 @@ def exec_start(*paths):
 
 
 class VolumedCheckTest(unittest.TestCase):
-    """NEXT 4.9: the volume wheel page shows its controls only if the running pyra_volumed reads its file."""
+    """The volume wheel page shows its controls only if the running pyra_volumed reads its file."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -372,7 +372,7 @@ class VolumedCheckTest(unittest.TestCase):
 
 
 class VolumePageTest(unittest.TestCase):
-    """The volume wheel page's reading and changes (NEXT 4.11, docs/ui.md "Volume wheel")."""
+    """The volume wheel page's reading and changes (docs/ui.md "Volume wheel")."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -476,7 +476,7 @@ SINKS_JSON = """[{"name": "alsa_output.hdmi", "active_port": null, "mute": false
 
 
 class RangeByEarTest(unittest.TestCase):
-    """Setting a range by ear (NEXT 4.15, docs/ui.md "Setting a range by ear")."""
+    """Setting a range by ear (docs/ui.md "Setting a range by ear")."""
 
     def setUp(self):
         patcher = mock.patch.dict(os.environ)

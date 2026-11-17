@@ -1,4 +1,4 @@
-"""pyra-settings-helper set-volume against a fake /etc/pyra_volumed.conf (NEXT 4.4)."""
+"""pyra-settings-helper set-volume against a fake /etc/pyra_volumed.conf."""
 
 import contextlib
 import io

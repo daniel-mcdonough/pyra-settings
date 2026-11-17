@@ -1,4 +1,4 @@
-"""The Display & keyboard light page's logic (NEXT 4.22): reading and writing ~/.config/pyra-backlight.conf as
+"""The Display & keyboard light page's logic: reading and writing ~/.config/pyra-backlight.conf as
 pyra-idle-dim reads it, keeping the other keys, "Custom" values, the MATE warning and the reload."""
 
 import os

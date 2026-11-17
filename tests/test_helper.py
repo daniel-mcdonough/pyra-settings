@@ -1,4 +1,4 @@
-"""pyra-settings-helper against a fake sysfs tree (NEXT 1.1)."""
+"""pyra-settings-helper against a fake sysfs tree."""
 
 import contextlib
 import errno
@@ -137,7 +137,7 @@ class TestSetWake(HelperTest):
         self.assertIn("game-buttons = 102,103,104,105,106,107,108,109,272,273", self.read_config())
 
     def test_none_disables_device(self):
-        # NEXT 2.2: until an empty wakeup_keys write is tested, "none" is power/wakeup=disabled.
+        # Until an empty wakeup_keys write is tested, "none" is power/wakeup=disabled.
         self.assertEqual(self.run_helper("set-wake", "game-buttons", "none"), 0, self.stderr)
         self.assertEqual(self.game("power/wakeup"), "disabled\n")
         self.assertEqual(self.game("wakeup_keys"), fakesysfs.GAME_KEYS + "\n")

@@ -1,21 +1,19 @@
 # UI: layout and controller navigation
 
-The owner's design for the GUI, from an HTML mockup (2026-11-12, not in the repo). What the settings
-do and why is in `design.md`; this file says how the app looks and how it is driven. Don't add layout beyond what
-is here; ask the owner.
+The project's UI design for the GUI, from an HTML mockup (not in the repo). What the settings do and why is in
+`design.md`; this file says how the app looks and how it is driven. Don't add layout beyond what is here; layout
+changes are a design decision, to be agreed first.
 
 ## Status
 
-- Agreed for v1 (2026-11-12), with the owner's answers to the review below ("Decisions on the mockup").
+- v1 is agreed, with the decisions on the mockup listed below ("Decisions on the mockup").
 - v2 pages are sketched but not agreed (`design.md`, "Later candidates"). Don't build them, except Nubs and
   Volume wheel.
-- Nubs page agreed (2026-11-14, NEXT 4.6): drafted from the row kinds below, since the mockup has no nub page,
-  and settled with the owner ("Nubs" under "Pages").
-- Volume wheel page agreed (2026-11-14, NEXT 4.11), the same way ("Volume wheel" under "Pages"). The mockup's
-  only volume item is the Sound page's button to MATE's panel (the untracked `pyra-settings-configuration-app-ui-plan/`
-  bundle is that mockup).
-- Display & keyboard light page agreed (2026-11-15, NEXT 4.17 and 4.21), the same way ("Display & keyboard
-  light" under "Pages"). It replaces the mockup's Display and Keyboard light sketches below.
+- Nubs page agreed: drafted from the row kinds below, since the mockup has no nub page ("Nubs" under "Pages").
+- Volume wheel page agreed, the same way ("Volume wheel" under "Pages"). The mockup's only volume item is the
+  Sound page's button to MATE's panel.
+- Display & keyboard light page agreed, the same way ("Display & keyboard light" under "Pages"). It replaces the
+  mockup's Display and Keyboard light sketches below.
 
 ## Decisions on the mockup
 
@@ -27,7 +25,7 @@ is here; ask the owner.
 | In-app "Authenticate" dialog with A/B buttons | MATE's polkit agent (mate-polkit) shows its own dialog | pkexec's prompt belongs to the agent; the app can't style it |
 | Lock icon disappears after the first password | The lock stays on every root row | `auth_admin_keep` expires after a few minutes and the app can't tell when |
 | Critical battery: "Shut down" / "Power off" | "Shut down" only | The two were the same action |
-| One lid control, one idle control | The lid control writes both the `-battery` and `-ac` key; no idle control (owner, 2026-11-13: idle sleep left to MATE, `design.md`) | One concept to the user. Differing values show as "Custom" |
+| One lid control, one idle control | The lid control writes both the `-battery` and `-ac` key; no idle control (idle sleep left to MATE by design, `design.md`) | One concept to the user. Differing values show as "Custom" |
 | Status line "Changes apply immediately" | See "Status line" below | Wake changes matter at the next suspend (`design.md`) |
 | Readings strip on Quick settings | v2, with the Status page | Status readings are a v2 candidate |
 | "Open in MATE" buttons (design.md) | Dropped | Control Center already lists MATE's panels |
@@ -76,7 +74,7 @@ v1 pages, in order:
 | Locked | Label and subtitle left; "Always on" with a lock icon, dim, right | No |
 | Button | Label and subtitle left; a button with the action text and a chevron right | Yes |
 | Warning | Warning-coloured banner (warning icon, text, action button), 8 px above, 12 px below. A `Gtk.InfoBar` of type warning fits | Yes |
-| Slider | Label left; on the right a `Gtk.Scale` (no drawn value), ◀ and ▶ buttons (choice-button size) at its ends, and the number after them (16 px semibold). Agreed for Nubs, NEXT 4.7 | Yes |
+| Slider | Label left; on the right a `Gtk.Scale` (no drawn value), ◀ and ▶ buttons (choice-button size) at its ends, and the number after them (16 px semibold). Used on Nubs | Yes |
 
 - A row is at least 64 px high, padding 10 px vertical, 18 px horizontal, 24 px gap between text and control.
 - A row whose setting goes through the helper shows a small lock icon after its label, always.
@@ -131,13 +129,13 @@ present is hidden.
 
 ### Nubs
 
-Not in the mockup (it has only the "Nub clicks" wake switch). Drafted for NEXT 4.6 from the row kinds above and
-agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every row but the info row goes through
+Not in the mockup (it has only the "Nub clicks" wake switch). Drafted from the row kinds above. Keys, values and
+the file: `nubs.md`. Every row but the info row goes through
 `set-nubs`, so each has the lock.
 
 1. Info, only when the file has a `profile.current` line: **A nub profile is loaded**, value the profile's
    file name (`profile.N`'s value, base name), subtitle "It overrides this page until sudo pyrainputctl
-   no-overload removes it." Neutral wording (owner, 2026-11-14, NEXT 4.8): no package in the Pyra archive calls
+   no-overload removes it." Neutral wording by design: no package in the Pyra archive calls
    `pyrainputctl overload`, so the lines come from a manual call or a game from elsewhere (`nubs.md`). A profile loaded from command mode (Fn+Pyra, digit) isn't in the file and isn't
    shown.
 2. Header **Left nub**.
@@ -170,18 +168,18 @@ agreed with the owner, 2026-11-14. Keys, values and the file: `nubs.md`. Every r
     three have no row; this is the only way the app undoes them.
 
 - The labels shown on the buttons are the words only (Slow, Normal, ...); the numbers are what is written.
-  Normal is the daemon's built-in value. The preset numbers are confirmed (owner, 2026-11-15, NEXT 4.7).
+  Normal is the daemon's built-in value. The preset numbers are confirmed.
 - The page reads `/etc/pyrainput.cfg` the way the daemon does: last line for a key wins, keys lowercased,
   lines with leading space and comments ignored, a missing key or a missing file = the built-in value. A value
   no option matches shows as "Custom" in the subtitle; picking an option writes only that row's keys.
 - A choice writes the option's value (Normal writes 75, not `default`); only the Reset buttons remove keys.
 - After a save: "Saved" for 3 s. The daemon reloads, so it applies on the next nub movement, not at a suspend.
 
-#### Fine sliders (NEXT 4.7, agreed 2026-11-15)
+#### Fine sliders
 
-The owner kept the presets and asked for fine control on all three speed rows. Each choice row gets a slider row
-right under it, always shown, labelled **Fine Pointer Speed**, **Fine Scroll Speed** and **Fine Deadzone** (owner,
-2026-11-15, NEXT 4.24; at first just "Fine"), with the lock (it writes through `set-nubs` too).
+The presets stay, with fine control on all three speed rows. Each choice row gets a slider row right under it,
+always shown, labelled **Fine Pointer Speed**, **Fine Scroll Speed** and **Fine Deadzone** (earlier versions
+labelled them just "Fine"), with the lock (it writes through `set-nubs` too).
 
 - Ranges: pointer speed 10-400, scroll speed 10-300, pointer deadzone 0-150, steps of 5. The helper takes more
   (`nubs.md`), but past these the pointer crosses the screen in a blink, or the deadzone eats most of the nub's
@@ -205,9 +203,8 @@ right under it, always shown, labelled **Fine Pointer Speed**, **Fine Scroll Spe
 
 ### Volume wheel
 
-Not in the mockup. Drafted for NEXT 4.11 from the row kinds above and agreed with the owner, 2026-11-14; the
-range rows replaced the Quietest/Loudest presets in NEXT 4.15 (below). Keys, file syntax and the daemons:
-`volume-wheel.md`. Every row but the info row goes through `set-volume`, so each has the lock.
+Not in the mockup. Drafted from the row kinds above; the range rows replaced the earlier Quietest/Loudest
+presets (below). Keys, file syntax and the daemons: `volume-wheel.md`. Every row but the info row goes through `set-volume`, so each has the lock.
 
 When the check (`volume-wheel.md`, "The check") fails, the page holds one row with its `VOLUMED_NOTES` line and
 nothing else. Otherwise:
@@ -225,7 +222,7 @@ nothing else. Otherwise:
 8. Info **Wheel reading**: `in_voltage2_raw` of palmas-gpadc, live (read every 250 ms while the page is shown);
    "Can't read" when there is no such device.
 9. Button **Calibrate**, subtitle "Turn the wheel to each mark", action "Start". The guided calibration runs in
-   place on this row (owner, 2026-11-14): the subtitle becomes "Step N of 5: turn the wheel all the way down"
+   place on this row: the subtitle becomes "Step N of 5: turn the wheel all the way down"
    (then a quarter of the way up, half way up, three quarters of the way up, all the way up), the action
    "Record", and the hint bar A Record, B Cancel. A records the mark: the mean of 5 readings 100 ms apart. After
    the fifth, the five values go to `set-volume cal=...` (one password). Readings that the daemon would ignore
@@ -240,19 +237,20 @@ nothing else. Otherwise:
 - After a save: "Saved" for 3 s. The helper restarts pyra_volumed, so it applies at once.
 - File unreadable (not missing): the rows stay, greyed out; the status line's idle text says "Can't read the
   volume wheel settings: <error> (<file>)".
-- A raised `lo` made the wheel flutter at the bottom with pyra-hacks 0.38+pyra2. The owner chose to fix the
-  daemon rather than limit the page: fixed in 0.38+pyra3 (`volume-wheel.md`, "Off band").
+- A raised `lo` made the wheel flutter at the bottom with pyra-hacks 0.38+pyra2. The daemon was fixed
+  rather than the page limited, in 0.38+pyra3 (`volume-wheel.md`, "Off band").
 
-#### Setting a range by ear (NEXT 4.15, agreed 2026-11-14)
+#### Setting a range by ear
 
-On the Pyra (NEXT 4.13) the owner found Quietest/Loudest presets unusable: a list of named levels can't be judged
-without sound. The ends are set by ear instead, with music playing, in place on the range row, like Calibrate.
+Earlier versions had Quietest/Loudest presets; replaced because, tried on the Pyra, a list of named levels can't be
+judged without sound. The ends are set by ear instead, with music playing, in place on the range row, like
+Calibrate.
 
 1. A on **Speaker range** (or **Headphone range**): the bundled loop starts (below), and the row reads "Step 1 of
    2: make it as loud as you'd ever want (-20 dB)" with a second line "D-pad ◀ ▶ or − + to change, A or Record
    to keep it, B to cancel", action "Record", and − and + buttons (choice-button size) before it. The level
    starts quiet, speakers -20 dB (step 16), headphones -18 dB (step 6), or at the current `hi` if that is lower,
-   and the user turns it up (owner, 2026-11-14: starting at the built-in +6 dB was too loud on the speakers).
+   and the user turns it up (starting at the built-in +6 dB was too loud on the speakers).
 2. Left/right or − / + step the level by one mixer step (2 dB), heard at once; the subtitle's dB follows. A or
    Record records `hi`. A click elsewhere on the row does nothing. Limits: 1 to the control's max (29, 15), so a
    `lo` below it is always possible.
@@ -264,21 +262,21 @@ without sound. The ends are set by ear instead, with music playing, in place on 
    "Range not changed." (unplugging: "Headphones unplugged. Range not changed.").
 
 - Hint bar during the steps: ◀▶ Change · A Record · B Cancel. The other rows are greyed out.
-- **The wheel is ignored** during the steps (owner): pyra_volumed writes the mixer only on a step change, a
+- **The wheel is ignored** during the steps: pyra_volumed writes the mixer only on a step change, a
   restart or an off/on change, so a resting wheel leaves the preview alone; if the wheel moves, the page writes
   the preview back (it checks the mixer every 250 ms). Holding the wheel at an end wouldn't work: the bottom stop
   is the daemon's off band (step 0), not `lo`.
-- **Output matches the jack** (owner): speakers only with the headphones out, headphones only with them in
+- **Output matches the jack**: speakers only with the headphones out, headphones only with them in
   (`Headset Stereophone Jack`). For the steps the page sets PulseAudio's port on the codec's sink to the
   matching one (`pyra-speaker`, `pyra-headphones`), the sink to 100% and unmuted, and plays the loop on that
   sink, because PulseAudio's software volume multiplies the mixer's. On save or cancel it puts back the port,
   the volume, the mute and the mixer value from before the step (pyra_volumed won't rewrite it with the wheel
   at rest).
-- **Start levels** (owner): step 1 quiet, as above; step 2 at the current `lo`. The instruction line and the
-  − / + buttons were added after the first run on the Pyra (owner, 2026-11-14).
+- **Start levels**: step 1 quiet, as above; step 2 at the current `lo`. The instruction line and the − / +
+  buttons were added after the first run on the Pyra.
 - The preview is written as the user (`amixer -c L15 cset`; the user is in `audio`), not through the helper.
 - The loop: `data/sounds/volume-test.ogg`, installed in `/usr/share/pyra-settings/sounds/`, played with `paplay`
-  and started again each time it ends. An upbeat electronic excerpt the owner made on a paid Suno plan and
+  and started again each time it ends. An upbeat electronic excerpt made on a paid Suno plan and
   trimmed (31.6 s, 48 kHz stereo, Vorbis q4, 500 KB). Loudness range 1.2 LU (about -13 LUFS, true peak -1.8
   dBFS), no fade at either end, so it loops without a dip. Metadata stripped (the source carried a username and
   the Suno song id). CC0-1.0 in `debian/copyright`.
@@ -287,8 +285,8 @@ without sound. The ends are set by ear instead, with music playing, in place on 
 
 ### Display & keyboard light
 
-Agreed with the owner, 2026-11-15 (NEXT 4.17, 4.21), from the row kinds above; the mockup's sketches (Off / Low /
-Medium / High, "Dim when idle") don't match the agreed mechanism. What the settings do: `design.md`, "Keyboard
+Drafted from the row kinds above; the mockup's sketches (Off / Low / Medium / High, "Dim when idle") don't match
+the agreed mechanism. What the settings do: `design.md`, "Keyboard
 light" and "Screen dimming". In the sidebar after Battery. No row goes through the helper, so no lock icons: the
 page writes `~/.config/pyra-backlight.conf` as the user and runs `systemctl --user reload pyra-idle-dim`.
 
@@ -305,8 +303,8 @@ page writes `~/.config/pyra-backlight.conf` as the user and runs `systemctl --us
    level`: `last`, then 0 and the eight non-zero steps of the Fn keys). No key shows as Last; another number as
    "Custom".
 
-- The labels in bold are working names, as are the sidebar icon and subtitle: the owner checks the wording when
-  the page is built.
+- The labels in bold are working names, as are the sidebar icon and subtitle: the wording is checked when the
+  page is built (final names under "As built" below).
 - Ten buttons at 44 px fit: the page area is about 910 px wide at 1280x720.
 - A choice writes its key, keeps the file's other keys and sections, then reloads. After a save: "Saved" for 3 s.
   A fixed level is set at once (pyra-idle-dim at reload, pyra-backlight 0.7) and again at each login; Last sets
@@ -320,13 +318,13 @@ restore back, which restore its own level, not the user's (dragonbox-pyra `docs/
 keyboard backlight brightness" (battery tab, `org.mate.power-manager kbd-backlight-battery-reduce`) and "Dim
 display when idle" (AC tab, `idle-dim-ac`). When either is true the page shows a warning banner at the top, with
 text saying MATE's power settings will undo the keyboard light level, and a button "Turn off" that sets both keys
-to false (gsettings, as the user). A button, not a switch (owner, 2026-11-15): the app can't keep the boxes off
+to false (gsettings, as the user). A button, not a switch, by design: the app can't keep the boxes off
 while it isn't running, so a switch would show a state that a box ticked later in MATE has made false. If a box is
 ticked again, the warning comes back the next time the page is read. Unticking `idle-dim-ac` also stops MATE
 dimming the screen on AC, which pyra-idle-dim does anyway. `idle-dim-battery` (true on the image) isn't watched: on
 battery MATE's keyboard idle dim also needs `kbd-backlight-battery-reduce` (dragonbox-pyra fix 20).
 
-**As built (NEXT 4.22, 2026-11-15; accepted by the owner on the Pyra, 4.23).** Names: dim depth "Dim when idle
+**As built (verified on the device).** Names: dim depth "Dim when idle
 to", idle delay "Idle after" (value "30 min"), level at login "Light at login"; sidebar icon
 `display-brightness-symbolic`. Keyboard buttons read 1 ... 60
 without the unit and "100 %" last, as listed above; the screen's each carry "%". Warning text: "MATE's power
@@ -355,8 +353,7 @@ One warning, in the warning banner, at the top of Quick settings and under "Wake
 
 The Display & keyboard light page has its own warning, for MATE's keyboard dim boxes (described there).
 
-No warning when only the power button can wake the Pyra: the locked Power button row already says so (owner,
-2026-11-12).
+No warning when only the power button can wake the Pyra: the locked Power button row already says so.
 
 ## Hint bar
 
@@ -376,7 +373,7 @@ Every change is written at once, so there is never an unsaved state to show.
 - After a gsettings write: "Saved" for 3 s, then the idle line again.
 - After a helper write: "Saved. Takes effect at the next suspend." for 4 s.
 - Cancelled password or a helper error: the control goes back to its old value and the line says why, for 8 s.
-- Messages stay a few seconds (owner, 2026-11-12).
+- Messages stay a few seconds, by design.
 
 ### Wake settings that can't be read
 
@@ -384,7 +381,7 @@ When sysfs can't be read (a device or file missing, a value that doesn't parse),
 place, greyed out and off: on Quick settings the game-buttons switch (the without-0053 one, since 0053 can't be
 told), on Suspend & wake that switch and **Opening the lid wakes the Pyra**. The Power button row stays. The
 reason, "Can't read the wake settings: <error> (<file>)", is the status line's idle text with a warning icon:
-it stays, and comes back after each timed message (owner, 2026-11-12).
+it stays, and comes back after each timed message.
 
 ## Controller and keyboard
 
@@ -405,10 +402,9 @@ PgUp and PgDn themselves.
 - Touch and mouse: tapping a sidebar row opens that page with the sidebar focused. Tapping a row focuses it and
   toggles or activates switches and buttons; tapping an option on a choice row selects it.
 
-## As built (NEXT 1.3): choices this file left open
+## As built: choices this file left open
 
-Made while writing the GUI, where the sections above say nothing. All accepted by the owner on the Pyra
-(2026-11-13, NEXT 1.6); the status timings and the unreadable-sysfs case are in "Status line" above.
+Made while writing the GUI, where the sections above say nothing. All verified on the device; the status timings and the unreadable-sysfs case are in "Status line" above.
 
 - Icons: Quick settings `preferences-system-symbolic`, Suspend & wake `pyra-settings-suspend-symbolic` (the
   app's own crescent moon in hicolor, 0.4: the mate theme's `weather-clear-night-symbolic` reads as a grey disc
@@ -421,14 +417,14 @@ Made while writing the GUI, where the sections above say nothing. All accepted b
 - Greyed-out rows still take the focus; A and ◀▶ do nothing on them.
 - Hint glyphs are fixed dark badges (`#333`, white text), not theme colours, as the mockup's are.
 - The warning's focus ring is a 3 px frame around the `Gtk.InfoBar` (its children paint over a box-shadow).
-- (2026-11-15, owner) Choice buttons are separate, 6 px apart, not GTK's `linked` style, which looked like one
+- Choice buttons are separate, 6 px apart, not GTK's `linked` style, which looked like one
   continuous box. Option padding is fixed at 10 px a side: the theme's (Breeze on the PC, at the Pyra's Sans 12
   and 117 dpi) made every button 78 px wide and pushed the ten-button keyboard row past the screen. 44 px stays
   the minimum.
-- (2026-11-15, owner) The sidebar title turns semibold on the current page; it reserves the semibold width all the
+- The sidebar title turns semibold on the current page; it reserves the semibold width all the
   time, so the sidebar doesn't widen when the focus moves into the page. At the Pyra's font "Display & keyboard
   light" makes the sidebar about 314 px instead of 290.
-- Fine sliders (NEXT 4.24, package 0.12):
+- Fine sliders (package 0.12):
   - The scale is 320 px wide; the number keeps 4 characters' width, so the scale doesn't shift.
   - From an off-step value a step lands on the next multiple of 5 that way (123: ▶ 125, ◀ 120). From outside
     the range ◀ / ▶ towards it lands on the end; away from it does nothing.
@@ -442,9 +438,9 @@ Made while writing the GUI, where the sections above say nothing. All accepted b
   - A step still resting when the window closes is written anyway (the helper outlives the app); one made
     during a run that hasn't finished is lost.
 
-## Checked on the Pyra (NEXT 1.6, 2026-11-13)
+## Checked on the Pyra
 
-0.4 and 0.5 on the Pyra (kernel 5.6.19-m4-kbdled, no 0053), checked by the owner: all works.
+Verified on the device with 0.4 and 0.5 (kernel 5.6.19-m4-kbdled, no 0053): all works.
 
 - Layout at 1280x720 in Menta (BlueMenta), BlackMATE and a flat theme.
 - Controller keys and touch as "Controller and keyboard" says.
@@ -454,13 +450,13 @@ Made while writing the GUI, where the sections above say nothing. All accepted b
 
 ## v2 sketches (not agreed)
 
-Kept so v2 work starts from the owner's layout. Each needs its own yes (`design.md`).
+Kept so v2 work starts from the project's layout. Each needs its own agreement before it is built (`design.md`).
 
 - **Quick settings readings strip**, above the rows: four cells in one bordered box (Battery, Time left, CPU
   temperature, CPU clock), each an icon, a dim 12 px label and a 17 px bold value. Keyboard light choice added
   before "More wake options".
 - **Battery**: header Status, info rows Battery (with charge state and time left) and Charger.
-- Superseded by "Display & keyboard light" (2026-11-15): **Display** (`brightness_6`): choice Dim the screen after: 30 s / 1 min / 2 min / 5 min / Never; info Dim level,
+- Superseded by "Display & keyboard light": **Display** (`brightness_6`): choice Dim the screen after: 30 s / 1 min / 2 min / 5 min / Never; info Dim level,
   dimmed, "Set by the system for now."
 - Superseded likewise: **Keyboard light** (`keyboard`): choice Default light level: Off / Low / Medium / High (root); switch Dim when
   idle, "Follows the screen dim delay."

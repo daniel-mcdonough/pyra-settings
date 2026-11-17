@@ -1,5 +1,4 @@
-"""pyra-settings-helper set-nubs against a fake /etc/pyrainput.cfg (NEXT 4.1), and the Fine sliders' logic
-(NEXT 4.24)."""
+"""pyra-settings-helper set-nubs against a fake /etc/pyrainput.cfg, and the Fine sliders' logic."""
 
 import contextlib
 import io

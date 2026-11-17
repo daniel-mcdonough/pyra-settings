@@ -1,7 +1,6 @@
 """What the GUI shows and asks for, without GTK: sysfs wake state, gsettings values, the nub settings, helper
-commands and their results (NEXT 1.3, 4.6, 4.11, 4.15, 4.22). The rules are docs/design.md "v1 settings", "Keyboard
-light" and "Screen dimming", docs/nubs.md and docs/volume-wheel.md; the presets, groups, warnings and options are
-docs/ui.md.
+commands and their results. The rules are docs/design.md "v1 settings", "Keyboard light" and "Screen dimming",
+docs/nubs.md and docs/volume-wheel.md; the presets, groups, warnings and options are docs/ui.md.
 
 The GUI reads sysfs, /etc/pyrainput.cfg and /etc/pyra_volumed.conf and never writes them. PYRA_SETTINGS_SYSFS,
 PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED and PYRA_SETTINGS_IIO point it at fake files on the PC, and
@@ -435,7 +434,7 @@ def nubs_argv(changes):
     return helper_command() + ["set-nubs"] + args
 
 
-# Does the running pyra_volumed read /etc/pyra_volumed.conf (NEXT 4.9, docs/volume-wheel.md "Which daemon reads
+# Does the running pyra_volumed read /etc/pyra_volumed.conf (docs/volume-wheel.md "Which daemon reads
 # the file")? Only if the unit runs the packaged binary directly and that binary has the file's path in it.
 VOLUMED_SHOW = ["systemctl", "show", "--value", "-p", "ExecStart", "pyra_volumed.service"]
 VOLUMED_BINARY = "/usr/bin/pyra_volumed"
@@ -615,7 +614,7 @@ class Calibration:
         return None
 
 
-# Setting a range by ear (NEXT 4.15, docs/ui.md "Setting a range by ear"). The preview goes straight to the
+# Setting a range by ear (docs/ui.md "Setting a range by ear"). The preview goes straight to the
 # codec's mixer as the user (audio group); the loop plays on the codec's PulseAudio sink at 100%, because its
 # software volume multiplies the mixer's.
 AUDIO_CARD = "L15"
@@ -624,7 +623,7 @@ JACK_CONTROL = "Headset Stereophone Jack"
 RANGE_PORTS = {"range": "pyra-speaker", "hsrange": "pyra-headphones"}
 RANGE_DB = {"range": -52, "hsrange": -30}   # dB at step 0; every step is 2 dB
 # Step 1 starts here (-20 dB, -18 dB), or at the saved hi if that is lower, and the user turns it up: the saved
-# +6 dB was too loud on the speakers to start a step with (owner, 2026-11-14).
+# +6 dB was too loud on the speakers to start a step with.
 RANGE_START_HI = {"range": 16, "hsrange": 6}
 RANGE_HELP = "D-pad \u25c0 \u25b6 or \u2212 + to change, A or Record to keep it, B to cancel"
 SOUND_PATH = "/usr/share/pyra-settings/sounds/volume-test.ogg"

@@ -1,7 +1,7 @@
 pyra-settings (0.13) trixie; urgency=medium
 
   * GUI: the Fine sliders are labelled Fine Pointer Speed, Fine Scroll Speed
-    and Fine Deadzone (owner, NEXT 4.24).
+    and Fine Deadzone.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 15 Nov 2026 19:00:00 +0000
 
@@ -9,8 +9,7 @@ pyra-settings (0.12) trixie; urgency=medium
 
   * GUI: Nubs page: a Fine slider under the pointer speed, scroll speed and
     pointer deadzone choices, steps of 5, written once the value has rested
-    about a second; steps made during a write are written after it
-    (NEXT 4.24).
+    about a second; steps made during a write are written after it.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 15 Nov 2026 18:00:00 +0000
 
@@ -18,7 +17,7 @@ pyra-settings (0.11) trixie; urgency=medium
 
   * GUI: Display & keyboard light page: screen dim depth and keyboard light
     level at login in ~/.config/pyra-backlight.conf, the idle delay shown,
-    and a warning with "Turn off" for MATE's own keyboard dim (NEXT 4.22).
+    and a warning with "Turn off" for MATE's own keyboard dim.
   * Depends on pyra-backlight (>= 0.4), which reads [screen] dim.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 15 Nov 2026 12:00:00 +0000
@@ -26,7 +25,7 @@ pyra-settings (0.11) trixie; urgency=medium
 pyra-settings (0.10) trixie; urgency=medium
 
   * GUI: the volume wheel page sets each range by ear, with a bundled loop
-    playing, in place of the Quietest/Loudest presets (NEXT 4.15).
+    playing, in place of the Quietest/Loudest presets.
   * Depends on alsa-utils and pulseaudio-utils (amixer, pactl, paplay).
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 15 Nov 2026 01:00:00 +0000
@@ -34,20 +33,18 @@ pyra-settings (0.10) trixie; urgency=medium
 pyra-settings (0.9) trixie; urgency=medium
 
   * GUI: Volume wheel page (speaker and headphone presets, guided
-    calibration, per-section resets), saving through set-volume
-    (NEXT 4.11).
+    calibration, per-section resets), saving through set-volume.
   * Depends on pyra-hacks (>= 0.38+pyra3): the fork whose pyra_volumed
-    reads /etc/pyra_volumed.conf and has the off band (NEXT 4.13).
+    reads /etc/pyra_volumed.conf and has the off band.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Sat, 14 Nov 2026 23:00:00 +0000
 
 pyra-settings (0.8) trixie; urgency=medium
 
   * Helper: set-volume edits cal, range and hsrange in /etc/pyra_volumed.conf
-    and restarts pyra_volumed (NEXT 4.4).
+    and restarts pyra_volumed.
   * GUI logic: volumed_check tells whether the running pyra_volumed reads
-    that file (NEXT 4.9). The Nubs page's profile row is worded neutrally
-    (NEXT 4.8).
+    that file. The Nubs page's profile row is worded neutrally.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Sat, 14 Nov 2026 20:00:00 +0000
 
@@ -55,16 +52,16 @@ pyra-settings (0.7) trixie; urgency=medium
 
   * GUI: Nubs page (what each nub's movement and click do, pointer and
     scroll speed, pointer deadzone, per-section resets), reading
-    /etc/pyrainput.cfg and saving through set-nubs (NEXT 4.6).
+    /etc/pyrainput.cfg and saving through set-nubs.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Sat, 14 Nov 2026 12:00:00 +0000
 
 pyra-settings (0.6) trixie; urgency=medium
 
   * Helper: set-nubs edits /etc/pyrainput.cfg (nub modes, deadzones,
-    sensitivities) and reloads pyrainput (NEXT 4.1).
+    sensitivities) and reloads pyrainput.
   * polkit: the action's text names the Pyra's hardware settings, not only
-    wake, as it covers every helper command (NEXT 4.5).
+    wake, as it covers every helper command.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Fri, 13 Nov 2026 12:00:00 +0000
 
@@ -72,7 +69,7 @@ pyra-settings (0.5) trixie; urgency=medium
 
   * Idle sleep dropped: MATE's Power Management panel keeps it. MATE starts
     the sleep timer only after the session's 30 min idle delay, so the
-    app's "5 min" meant about 35 (NEXT 1.6).
+    app's "5 min" meant about 35.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Fri, 13 Nov 2026 00:15:00 +0000
 
@@ -80,16 +77,16 @@ pyra-settings (0.4) trixie; urgency=medium
 
   * Suspend & wake page icon: the app ships its own crescent moon
     (hicolor), as the mate icon theme's night icon reads as a grey disc at
-    sidebar size (NEXT 1.6).
+    sidebar size.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 12 Nov 2026 23:30:00 +0000
 
 pyra-settings (0.3) trixie; urgency=medium
 
   * Idle sleep suspends: picking an idle time also sets MATE's idle sleep
-    type to suspend where it was hibernate (NEXT 1.6, 2.7).
+    type to suspend where it was hibernate.
   * Wake settings that can't be read grey out their rows, and the reason
-    stays in the status line (NEXT 1.6).
+    stays in the status line.
   * "Saved" stays in the status line for 3 s.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 12 Nov 2026 20:00:00 +0000
@@ -97,13 +94,13 @@ pyra-settings (0.3) trixie; urgency=medium
 pyra-settings (0.2) trixie; urgency=medium
 
   * GUI: the sleep and wake pages (Quick settings, Suspend & wake, Battery)
-    with controller navigation (NEXT 1.3).
+    with controller navigation.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 12 Nov 2026 18:00:00 +0000
 
 pyra-settings (0.1) trixie; urgency=medium
 
   * Initial release: privileged helper, polkit policy, boot apply unit and
-    a stub GUI (NEXT 1.1, 1.2).
+    a stub GUI.
 
  -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 12 Nov 2026 12:00:00 +0000

@@ -1,4 +1,4 @@
-"""The packaging files agree with each other and with docs/design.md (NEXT 1.2)."""
+"""The packaging files agree with each other and with docs/design.md."""
 
 import configparser
 import os
@@ -45,7 +45,7 @@ class PackagingTest(unittest.TestCase):
     def test_desktop(self):
         entry = read_ini("data/pyra-settings.desktop")["Desktop Entry"]
         self.assertEqual(entry["Exec"], "pyra-settings")
-        # MATE Control Center's Hardware group needs both and no System (NEXT 2.4).
+        # MATE Control Center's Hardware group needs both and no System.
         categories = entry["Categories"].split(";")
         self.assertIn("Settings", categories)
         self.assertIn("HardwareSettings", categories)

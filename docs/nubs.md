@@ -2,10 +2,10 @@
 
 The nubs are read by the root daemon funkeymonkey (0.1.2) with the plugin libpyrainput (package
 funkeymonkey-pyrainput 0.1.19), unit `pyrainput.service`, config `/etc/pyrainput.cfg`. The helper's
-`set-nubs` edits that file and reloads the daemon (NEXT 4.1). Source: `funkeymonkey-pyrainput_0.1.19.tar.xz`
+`set-nubs` edits that file and reloads the daemon. Source: `funkeymonkey-pyrainput_0.1.19.tar.xz`
 from packages.pyra-handheld.com, trixie (`settings.cpp`, `pyrainput.cpp`, `pyrainput.h`, `pyrainputctl`).
-Everything below is from that source and from the image's file on the Pyra (2026-11-13), not from the package README, whose numbers are
-wrong for defaults.
+Everything below is from that source and from the image's file on the Pyra, not from the package README, whose numbers are wrong for
+defaults.
 
 ## The image's file
 
@@ -29,7 +29,7 @@ So every nub setting is at the daemon's built-in default. Mode `0644 root:root`.
 - Integer values go through `std::stoi`: a value that doesn't start with a number throws, which nothing catches,
   so the daemon dies (at start: crash loop under `Restart=on-failure`). The helper only ever writes plain decimals.
 - Mode values (`nubs.*`) are whitespace-separated lists. An unknown word becomes a no-op mode, not an error. An
-  empty value means no modes at all: the axis or click does nothing (checked on the Pyra, 2026-11-14).
+  empty value means no modes at all: the axis or click does nothing (checked on the Pyra).
 
 ## Nub keys, values and ranges
 
@@ -67,8 +67,8 @@ Quirks in 0.1.19, harmless for a settings app but visible when tuning:
 | Keys | Why |
 |---|---|
 | `scripts.*` | The daemon runs them with `system()` as root |
-| `profile.0`-`profile.9` | Paths of files the daemon parses as config, as root; a profile can set `scripts.*`. Owner, 2026-11-13: out of scope |
-| `profile.current` | Belongs to `pyrainputctl overload` (games). Out of scope, same decision |
+| `profile.0`-`profile.9` | Paths of files the daemon parses as config, as root; a profile can set `scripts.*`. Out of scope |
+| `profile.current` | Belongs to `pyrainputctl overload` (games). Out of scope |
 | `gamepad.export`, `keypad.export`, `mouse.export` | `pyrainputctl enable/disable` (games) |
 | `altmode.*`, `PYRA_KEY_*` | Not nub settings |
 
@@ -84,7 +84,7 @@ user's while it is loaded, and the helper keeps it that way: a key not yet in th
 
 Command mode (Fn+Pyra, then a digit) also loads a profile at run time.
 
-**Callers (NEXT 4.8, 2026-11-14): none known.** No package in the Pyra package archive (mirror of
+**Callers: none known.** No package in the Pyra package archive (mirror of
 packages.pyra-handheld.com, 2026-10-18: every `.deb`, source tarball, apt index and the small archives under
 `images/`) calls `pyrainputctl` at all, `overload` or `enable`/`disable`. The only package with the string is
 `funkeymonkey-pyrainput`, which ships it; `overload`/`no-overload` arrived in 0.1.14 (2021), the script is
@@ -127,13 +127,13 @@ produces events, so neither matters for it. The image's `ExecStartPost` drop-in 
 - No entry in `pyra-settings.conf` and no boot apply: the daemon reads its own file at start.
 - The path and the reload command are module constants (`PYRAINPUT_PATH`, `PYRAINPUT_RELOAD`) only tests patch.
 
-The GUI's Nubs page (NEXT 4.6, `ui.md` "Nubs") reads the file itself (it is world-readable) with the same rules
+The GUI's Nubs page (`ui.md` "Nubs") reads the file itself (it is world-readable) with the same rules
 as the daemon, and rereads it each time the page is opened.
 
-## Checked on the Pyra (0.6, 2026-11-14)
+## Checked on the Pyra (0.6)
 
-Release image, kernel without 0053, helper run as root through sudo (pkexec and its agent were checked in
-NEXT 1.6). The owner moved the nubs after each step:
+Release image, kernel without 0053, helper run as root through sudo (pkexec and its agent were checked
+separately). The nubs were moved by hand after each step:
 
 | Step | File after | Result |
 |---|---|---|

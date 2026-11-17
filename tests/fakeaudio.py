@@ -1,4 +1,4 @@
-"""Stand-in for amixer, pactl and paplay when running the GUI on the PC (NEXT 4.15, docs/testing.md): the state
+"""Stand-in for amixer, pactl and paplay when running the GUI on the PC (docs/testing.md): the state
 is a JSON file, every call is appended to its "log".
 
     PYRA_SETTINGS_AUDIO="python3 tests/fakeaudio.py <state.json>"

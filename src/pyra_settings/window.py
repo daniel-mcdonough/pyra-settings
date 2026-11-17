@@ -1,4 +1,4 @@
-"""The Pyra Settings window (NEXT 1.3, Nubs 4.6 and 4.24, Volume wheel 4.11 and 4.15, Display & keyboard light 4.22): sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
+"""The Pyra Settings window: sidebar, pages, hint bar, controller keys. Layout: docs/ui.md.
 
 The app keeps its own focus (sidebar or a page row) instead of GTK's, because the Pyra's A, B, Y and X buttons
 are Home, End, PgUp and PgDn, which GTK widgets would take. No widget can take keyboard focus.
@@ -214,7 +214,7 @@ class ChoiceRow(Row):
         self.current = current
         self.on_change = on_change
         self.sensitive = sensitive
-        # Separate buttons, not GTK's "linked" style, which some themes draw as one box (owner, 2026-11-15).
+        # Separate buttons, not GTK's "linked" style, which some themes draw as one box.
         buttons = Gtk.Box(valign=Gtk.Align.CENTER, spacing=6)
         self.buttons = {}
         for value, text in options:
@@ -880,7 +880,7 @@ class PyraSettingsWindow(Gtk.Window):
     def _game_rows(self, with_groups):
         """The preset (and on Suspend & wake the groups) with 0053, else the one fallback switch."""
         if self.wake is None:
-            # sysfs unreadable: the fallback switch, greyed out; the status line says why (owner, NEXT 1.6).
+            # sysfs unreadable: the fallback switch, greyed out; the status line says why.
             return [SwitchRow("game", "Game buttons wake the Pyra", "", False, None, locked=True,
                               sensitive=False)]
         w = self.wake
