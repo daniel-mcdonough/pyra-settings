@@ -216,13 +216,27 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   the reload only stores the level, which `login()` then sets.
 - Ticking MATE's "Reduce keyboard backlight brightness" (battery) or "Dim display when idle" (AC) hands the light
   back to MATE, which then fights pyra-idle-dim. Not handled; the page can say so (layout, 4.17).
-- While mate-screensaver's unlock dialog is up the session is still idle (Presence status 3), so the password is
-  typed with the keyboard light off and the screen dimmed; both come back at unlock. **Kept as is** (owner,
-  2026-11-15, NEXT 4.19); **reopened** 2026-11-16 as NEXT 4.29 (the login screen is now lit, the lock isn't). Reason: there is no clean signal for the dialog. mate-screensaver 1.26 exports only
-  `ActiveChanged` on D-Bus (its `auth-request-begin`/`-end` are internal GObject signals, not GNOME's old
-  `AuthenticationRequestBegin`), so pyra-idle-dim would have to poll for the `mate-screensaver-dialog` process or
-  its window, for a few seconds of typing. On idle the bus shows Presence `StatusChanged 3`, then about 10 s later
-  `ActiveChanged true`; any input ends both together (`ActiveChanged false`, status 0) unless the lock is engaged.
+- **Unlock dialog** (owner, 2026-11-16, NEXT 4.29; pyra-backlight 0.8). While mate-screensaver's unlock dialog
+  is up the session is still idle (Presence status 3), so until 0.8 the password was typed with the keyboard light
+  off and the screen dimmed (kept as is in 4.19). Chosen: light and screen back to their saved levels while the
+  dialog is up, off and dimmed again if it closes without an unlock. Facts, mate-screensaver 1.26.2 source and
+  the Pyra: D-Bus has only `ActiveChanged` and the methods `GetActive`, `GetActiveTime`, no lock state (its
+  `auth-request-begin`/`-end` are internal GObject signals, not GNOME's old `AuthenticationRequestBegin`). The
+  dialog is `/usr/libexec/mate-screensaver-dialog`, spawned by `popup_dialog` in `src/gs-window-x11.c` with
+  `g_spawn_async_with_pipes`, so a direct child of `mate-screensaver`; its `comm` is truncated to
+  `mate-screensave`, the same as its parent's, so match the cmdline. It is a GtkPlug in the screensaver's window
+  (no toplevel X window to find) and cancels itself after 60 s without typing (`DIALOG_TIMEOUT_MSEC`). At an
+  OK it prints `RESPONSE=OK` and exits; mate-screensaver then sends `ActiveChanged false` from an idle
+  callback, so the dialog is gone just before the screensaver is. Mode on the image: `blank-only`.
+  Mechanism: on `ActiveChanged true` pyra-idle-dim gets mate-screensaver's pid from the bus
+  (`GetConnectionUnixProcessID` on the signal's sender) and every 0.5 s reads
+  `/proc/<pid>/task/*/children` (`CONFIG_PROC_CHILDREN=y` on the Pyra kernel) for a child whose argv0 is
+  `mate-screensaver-dialog`. Dialog up: the wake path (same rules: only a light still at 0, only a screen still at
+  the dim level). Dialog gone for 2 s with the screensaver still active and the session still idle: the idle
+  path again. `ActiveChanged false` stops the polling. Rejected: the X window (a plug, and no Xlib on the image),
+  reading input devices (needs the `input` group). On idle the bus shows Presence `StatusChanged 3`, then about
+  10 s later `ActiveChanged true`; any input ends both together (`ActiveChanged false`, status 0) unless the lock
+  is engaged.
 - **Login screen (pyra-backlight 0.5, NEXT 4.26; checked on the Pyra 2026-11-16).** Measured: neither logind,
   lightdm nor pyra-idle-dim's stop touches the light at a logout; the greeter starts with the session's level.
   What turned it off was pyra-idle-dim itself, started in the greeter's session as the `lightdm` user (the user
