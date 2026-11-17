@@ -174,7 +174,10 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   screen's rule). A light already at 0 is left alone. Not a user setting.
 - **Storage.** A per-user INI file, `~/.config/pyra-backlight.conf`, shared with the screen dim depth (NEXT 4.2):
   owned by pyra-backlight, read by pyra-idle-dim, written by the app as the user. No pkexec, no root helper.
-  systemd-backlight's own save and restore stay as they are (they still decide the light before login).
+  systemd-backlight's own save and restore stay as they are.
+- **Login screen** (owner, 2026-11-16, NEXT 4.26). A fixed 20% at every greeter, at boot and after each logout,
+  whatever the session had. No user setting (no user is known there) and no app page. Home: pyra-backlight
+  (not an image fix), so installed systems get it too.
 
 **Mechanism (pyra-backlight 0.3, NEXT 4.16; checked on the Pyra 2026-11-14).**
 
@@ -210,6 +213,19 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   `AuthenticationRequestBegin`), so pyra-idle-dim would have to poll for the `mate-screensaver-dialog` process or
   its window, for a few seconds of typing. On idle the bus shows Presence `StatusChanged 3`, then about 10 s later
   `ActiveChanged true`; any input ends both together (`ActiveChanged false`, status 0) unless the lock is engaged.
+- **Login screen (pyra-backlight 0.5, NEXT 4.26; checked on the Pyra 2026-11-16).** Measured: neither logind,
+  lightdm nor pyra-idle-dim's stop touches the light at a logout; the greeter starts with the session's level.
+  What turned it off was pyra-idle-dim itself, started in the greeter's session as the `lightdm` user (the user
+  unit is enabled globally): 30 s in, with no `org.mate.PowerManager`, it applied "last level" from lightdm's own
+  record (`/var/lib/lightdm/.local/state/pyra-backlight/kbd-level`, then 0). 0.5 adds
+  `ConditionUser=!@system` to the unit (Debian's pulseaudio unit skips lightdm the same way), and
+  `/usr/libexec/pyra-greeter-kbd-light` as lightdm's `greeter-setup-script` (snippet
+  `/usr/share/lightdm/lightdm.conf.d/60-pyra-backlight.conf`, `[Seat:*]`): root, 20% of `max_brightness` on each
+  `*::kbd_backlight`, always exits 0 (lightdm doesn't start the greeter if the script fails). lightdm reads the
+  snippet only at its own start, so a new install needs a reboot. At boot systemd-backlight's restore (22.2 s)
+  finishes before lightdm starts (23.0 s), so the script wins. The stale lightdm record is left; nothing reads it.
+- At login on AC the light flashes up for about 0.3 s: MATE's 100% (reads 99), then pyra-idle-dim's level. It was
+  there before 0.5 (`18 → 99 → 10` logged), only more visible now that the greeter is lit. Open as NEXT 4.27.
 - The image's `org.mate.screensaver lock-delay` is 1 (minute): input in the first minute of the blank screen
   ends it with no lock and no dialog, and light and screen come back at once.
 - A change made while the light is off for idle is kept at wake (checked with a write of 10 during idle). An Fn
