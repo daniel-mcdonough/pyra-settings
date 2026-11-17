@@ -10,11 +10,10 @@ The UI layout is defined in `docs/ui.md`. This file says what the app does and w
 
 ## Status
 
-- v1 design settled. Helper, config file and boot apply written and tested on a fake sysfs. GUI checked on the
-  Pyra with 0.4 and 0.5, on a kernel without 0053 (`ui.md`, "Checked on the Pyra"). Not yet run end to end on a
-  0053 kernel.
-- v2 pages built: Nubs (checked on the Pyra with 0.6, `nubs.md`), Volume wheel (checked with 0.9,
-  `volume-wheel.md`), Display & keyboard light (0.11). Package at 0.13.
+- The whole app is tested on the Pyra, every page (`ui.md`, "Checked on the Pyra"). The wake rows were tested
+  on a kernel without 0053, so the per-button wake rows are not yet run end to end on a 0053 kernel.
+- Helper, config file and boot apply also tested on a fake sysfs.
+- v2 pages: Nubs (`nubs.md`), Volume wheel (`volume-wheel.md`), Display & keyboard light. Package at 0.13.
 - Image: dragonbox-pyra prep fix 26 installs the package with the pyra-hacks fork 0.38+pyra3 and sets fix 12
   aside. No pyra-settings release is pinned yet, so a default prep run leaves it out.
 - Kernel side done: 0053 is tested on `5.6.19-m4-kbdled-test`, not in `kernel-5.6.19-r2`. See
