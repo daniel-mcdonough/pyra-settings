@@ -224,8 +224,22 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   `*::kbd_backlight`, always exits 0 (lightdm doesn't start the greeter if the script fails). lightdm reads the
   snippet only at its own start, so a new install needs a reboot. At boot systemd-backlight's restore (22.2 s)
   finishes before lightdm starts (23.0 s), so the script wins. The stale lightdm record is left; nothing reads it.
-- At login on AC the light flashes up for about 0.3 s: MATE's 100% (reads 99), then pyra-idle-dim's level. It was
-  there before 0.5 (`18 → 99 → 10` logged), only more visible now that the greeter is lit. Open as NEXT 4.27.
+- **Flash at login (NEXT 4.27, pyra-backlight 0.6).** Cause, from mate-power-manager 1.26.1
+  `src/gpm-kbd-backlight.c`: `gpm_kbd_backlight_init` ends with `evaluate_power_source_and_set()`, which on AC
+  sets the light to `org.mate.power-manager kbd-brightness-on-ac` (default 100; 99 on this LED, as
+  `gpm_discrete_from_percent` scales by `max - 1`). It ramps one UPower `SetBrightness` per step from the current
+  level. On battery with `kbd-backlight-battery-reduce=false` it leaves the light alone. Nothing is saved
+  between sessions. The same function runs after each resume and on UpClient `notify`, but plugging the charger
+  in or out changed nothing in the log (UPower 1.90.9). Resume on AC is untested. `gpm_kbd_backlight_set` writes
+  nothing when the target is the current level, which holds for levels up to 49 (above that its percent
+  rounding moves it one step). Measured (50 ms poll, two logins on AC): 20 (greeter) → 62 → 99 within 0.2 s of
+  the name appearing, then pyra-idle-dim's 10 about 0.8 s later, so above the greeter level for about 1 s. Fix
+  (owner, 2026-11-16): pyra-backlight 0.6 ships `60_pyra-backlight.gschema.override` with
+  `kbd-brightness-on-ac=20`, equal to `pyra-greeter-kbd-light`'s level, so MATE's set at login is a no-op and the
+  light steps from 20 straight to the user's level. Only the default changes; a user's own gsettings value wins.
+  Side effect: a resume on AC would go to 20, not 99. Checked on the Pyra 2026-11-16 (owner): no flash; journal
+  `keyboard 20 -> 20` with level 20. A level saved in the app takes effect only at the next login (reload
+  rereads the file, it doesn't set the light); the owner wants it set at save too (NEXT 4.30).
 - The image's `org.mate.screensaver lock-delay` is 1 (minute): input in the first minute of the blank screen
   ends it with no lock and no dialog, and light and screen come back at once.
 - A change made while the light is off for idle is kept at wake (checked with a write of 10 during idle). An Fn
