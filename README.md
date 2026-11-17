@@ -13,6 +13,11 @@ keyboard light level at login. It runs on the
 Out of the box, every game button wakes the Pyra. Close the lid, drop it in a bag, and a shoulder button pressed
 against the bag's lining wakes it up. It then sits there awake with the lid closed, draining the battery.
 
+johnicboom's forum thread
+[Suspend investigation, with a reboot bonus](https://pyra-handheld.com/boards/threads/suspend-investigation-with-a-reboot-bonus.100153/)
+gave me a head start on the suspend and wake side of this. None of his code is in here, but his findings saved me a
+lot of digging.
+
 The other Pyra-specific settings had the same issue in a milder form: they existed, but only as config files under
 `/etc` (`/etc/pyrainput.cfg` for the nubs, `/etc/pyra_volumed.conf` for the wheel), sysfs files that reset every
 boot, or a value hard-coded in a systemd unit. Fine over ssh, less fine on a 5-inch screen.
