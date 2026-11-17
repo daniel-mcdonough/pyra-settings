@@ -208,7 +208,7 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   back to MATE, which then fights pyra-idle-dim. Not handled; the page can say so (layout, 4.17).
 - While mate-screensaver's unlock dialog is up the session is still idle (Presence status 3), so the password is
   typed with the keyboard light off and the screen dimmed; both come back at unlock. **Kept as is** (owner,
-  2026-11-15, NEXT 4.19). Reason: there is no clean signal for the dialog. mate-screensaver 1.26 exports only
+  2026-11-15, NEXT 4.19); **reopened** 2026-11-16 as NEXT 4.29 (the login screen is now lit, the lock isn't). Reason: there is no clean signal for the dialog. mate-screensaver 1.26 exports only
   `ActiveChanged` on D-Bus (its `auth-request-begin`/`-end` are internal GObject signals, not GNOME's old
   `AuthenticationRequestBegin`), so pyra-idle-dim would have to poll for the `mate-screensaver-dialog` process or
   its window, for a few seconds of typing. On idle the bus shows Presence `StatusChanged 3`, then about 10 s later
