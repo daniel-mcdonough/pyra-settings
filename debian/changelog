@@ -1,9 +1,8 @@
 pyra-settings (0.14) trixie; urgency=medium
 
   * Packaging: pyra-hacks and pyra-backlight are Recommends, not Depends, so
-    the package installs without them. The Volume wheel page says when its
-    daemon is missing; without pyra-backlight the Display page saves its
-    file but nothing reads it.
+    the package installs without them. The Volume wheel and Display pages
+    each say when their daemon is missing.
   * Packaging: the description covers every page.
   * Release builds on GitHub from a v* tag.
 

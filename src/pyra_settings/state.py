@@ -775,6 +775,9 @@ class RangeSetting:
 BACKLIGHT_PATH = os.environ.get("PYRA_SETTINGS_BACKLIGHT") or os.path.join(
     os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "pyra-backlight.conf")
 BACKLIGHT_RELOAD = ["systemctl", "--user", "reload", "pyra-idle-dim"]
+# The page shows its rows only if pyra-backlight is installed; without it the file is saved but nothing reads it.
+IDLE_DIM_BINARY = "/usr/bin/pyra-idle-dim"
+IDLE_DIM_NOTE = "pyra-backlight isn't installed, and nothing else reads these settings."
 # (section, key, what no key means: pyra-idle-dim's fallback)
 DIM_KEY = ("screen", "dim", "20")
 LEVEL_KEY = ("keyboard", "level", "last")
@@ -930,6 +933,10 @@ def reload_message(code):
     if code == 0:
         return True, SAVED
     return False, "Saved, but pyra-idle-dim didn't reload. It applies when pyra-idle-dim next starts."
+
+
+def idle_dim_installed(binary=None):
+    return os.path.exists(binary or IDLE_DIM_BINARY)
 
 
 def show_mate_dim_warning(values):

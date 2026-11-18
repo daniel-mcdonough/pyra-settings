@@ -290,6 +290,11 @@ the agreed mechanism. What the settings do: `design.md`, "Keyboard
 light" and "Screen dimming". In the sidebar after Battery. No row goes through the helper, so no lock icons: the
 page writes `~/.config/pyra-backlight.conf` as the user and runs `systemctl --user reload pyra-idle-dim`.
 
+Without pyra-backlight (no `/usr/bin/pyra-idle-dim`; it is a Recommends) the page holds one row, "pyra-backlight
+isn't installed, and nothing else reads these settings.", and nothing else, like the Volume wheel page's note.
+Checked once at start. No check for older pyra-backlight versions: none were ever used with the app.
+Otherwise:
+
 1. The warning, if either MATE box is ticked (below).
 2. Header **Screen**.
 3. Choice **dim depth**: Off / 10 % / 20 % / 40 % / 60 % (`[screen] dim`: `off` or the number). On the 0-15

@@ -529,6 +529,8 @@ class PyraSettingsWindow(Gtk.Window):
             if settings:
                 settings.connect("changed", lambda *_: self.rebuild())
         self.read_wake()
+        # Once, like the volume wheel check: installing pyra-backlight needs a restart of the app.
+        self.idle_dim = st.idle_dim_installed()
         self.read_backlight()
         self.read_nubs()
         # Once: a restart of the daemon doesn't change the result (docs/volume-wheel.md "The check").
@@ -932,6 +934,8 @@ class PyraSettingsWindow(Gtk.Window):
                           sensitive=bool(self.settings))]
 
     def _display_rows(self):
+        if not self.idle_dim:
+            return [NoteRow("display-note", st.IDLE_DIM_NOTE)]
         b = self.backlight
         rows = []
         if st.show_mate_dim_warning([self._bool(k) for k in st.MATE_DIM_KEYS]):

@@ -316,6 +316,25 @@ def exec_start(*paths):
                     "code=(null) ; status=0/0 }" % (p, p) for p in paths) + "\n"
 
 
+class IdleDimCheckTest(unittest.TestCase):
+    """The Display page shows its rows only if pyra-backlight's pyra-idle-dim is installed."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.binary = os.path.join(tmp.name, "pyra-idle-dim")
+
+    def test_installed(self):
+        open(self.binary, "w").close()
+        self.assertTrue(st.idle_dim_installed(self.binary))
+
+    def test_not_installed(self):
+        self.assertFalse(st.idle_dim_installed(self.binary))
+
+    def test_default_path(self):
+        self.assertEqual(st.IDLE_DIM_BINARY, "/usr/bin/pyra-idle-dim")
+
+
 class VolumedCheckTest(unittest.TestCase):
     """The volume wheel page shows its controls only if the running pyra_volumed reads its file."""
 

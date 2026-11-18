@@ -47,8 +47,8 @@ in the other without any syncing. There's no graceful way around this toe-steppi
 
 - A Pyra running the dragonbox-pyra image (Debian trixie, MATE, X11, 1280x720).
 - `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, `alsa-utils`, `pulseaudio-utils`, which should be on the image already.
-- `pyra-backlight` 0.4 or later for the Display & keyboard light page. Without it the page saves its settings but
-  nothing applies them.
+- `pyra-backlight` 0.4 or later for the Display & keyboard light page. Without it the page says it isn't installed
+  and shows no settings.
 - The pyra-hacks fork package, `0.38+pyra3` or later, for the Volume wheel page. Stock pyra-hacks 0.38's
   `pyra_volumed` doesn't read a config file at all.
 - For per-button wake control, a kernel with dragonbox-pyra patch 0053, which adds `wakeup_keys` and

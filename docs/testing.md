@@ -37,7 +37,8 @@
   whose state (jack, mixer steps, sink port, volume, mute) and call log are in the JSON file; edit `"jack"` to
   plug or unplug, or a mixer step to stand in for pyra_volumed moving it.
 - Display & keyboard light page on the PC: `PYRA_SETTINGS_BACKLIGHT=<file>` (what the GUI reads and writes in
-  place of `~/.config/pyra-backlight.conf`). `idle-dim-ac=true` under `[org/mate/power-manager]` in the keyfile
+  place of `~/.config/pyra-backlight.conf`). Without `/usr/bin/pyra-idle-dim` the page shows its note; to see the
+  rows, patch `state.idle_dim_installed` to return True, as for the Volume wheel check. `idle-dim-ac=true` under `[org/mate/power-manager]` in the keyfile
   shows the MATE warning. The reload fails on a PC (no pyra-idle-dim unit), so each save ends with the
   didn't-reload line; the file is written anyway. A file without a section header shows the unreadable state.
 - Killing the GUI from a script: `pkill -f <pattern>` also matches the shell running the command when the
