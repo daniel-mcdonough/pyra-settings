@@ -83,8 +83,12 @@ never touches `user-buttons`, so BTN1's wake stays at the device tree default (o
 `switches` = `0` (`SW_LID`), `wakeup_switches` = `0`, `power/wakeup` = `enabled`. The DT node also has a
 `wwan_wakeup` key (code 240), but it isn't registered: `keys` is empty. The lid is controlled by
 `wakeup_switches` (`0` on, empty off). The helper turns it off with
-`power/wakeup=disabled`, never an empty `wakeup_switches` (untested, like the empty `wakeup_keys` write). **Not
-tested** by closing and opening the lid.
+`power/wakeup=disabled`, never an empty `wakeup_switches` (untested, like the empty `wakeup_keys` write).
+
+Lid wake tested by the owner (2026-11-17) on `5.6.19-m4-kbdled` (no 0053) with package 0.13: lid wake on, the
+Pyra wakes at the lid open; off, it doesn't. Only `power/wakeup` was written (the pre-0.14 fallback). On 0.14 the
+off write is the same; on also writes `wakeup_switches` = `0`, 0053's default, which is not yet tested on a 0053
+kernel (NEXT 1.4).
 
 ## Other wake sources (not gpio-keys)
 
