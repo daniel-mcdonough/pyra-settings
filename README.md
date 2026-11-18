@@ -1,6 +1,6 @@
 # Pyra Settings
 
-A small GTK 3 settings app for the things only the DragonBox Pyra has: which buttons wake it from suspend, what
+A small GTK 3 settings app for the DragonBox Pyra, covering which buttons wake it from suspend, what
 the nubs do, how the volume wheel maps to speaker and headphone volume, how far the screen dims when idle, and the
 keyboard light level at login. It runs on the
 [dragonbox-pyra](https://github.com/daniel-mcdonough/dragonbox-pyra) image (Debian trixie, MATE, X11) and ships as an
@@ -8,74 +8,74 @@ keyboard light level at login. It runs on the
 
 ![Pyra Settings on the Pyra's 1280x720 screen, Nubs page](docs/images/pyra-settings.png)
 
-## The problem
+## Motivation
 
-Out of the box, every game button wakes the Pyra. Close the lid, drop it in a bag, and a shoulder button pressed
-against the bag's lining wakes it up. It then sits there awake with the lid closed, draining the battery.
+- Out of the box, the shoulder buttons can wake the Pyra which can accidentally be pressed during transport.
 
-johnicboom's forum thread
+  - johnicboom's forum thread
 [Suspend investigation, with a reboot bonus](https://pyra-handheld.com/boards/threads/suspend-investigation-with-a-reboot-bonus.100153/)
-gave me a head start on the suspend and wake side of this. None of his code is in here, but his findings saved me a
-lot of digging.
+gave me a head start on the button wake work.
 
-The other Pyra-specific settings had the same issue in a milder form: they existed, but only as config files under
-`/etc` (`/etc/pyrainput.cfg` for the nubs, `/etc/pyra_volumed.conf` for the wheel), sysfs files that reset every
-boot, or a value hard-coded in a systemd unit. Fine over ssh, less fine on a 5-inch screen.
+- Some Pyra-specific settings existed in config files but don't have a convenient, centralized way.
+  - `/etc/pyrainput.cfg` for the nubs
+  - `/etc/pyra_volumed.conf` for the wheel
+-  sysfs files that reset every boot or a value hard-coded in a systemd unit.
 
 ## Why not just use MATE
 
 MATE's Control Center panels don't take plugin pages. Adding wake buttons to `mate-power-preferences` means patching
-a C program in a Debian package and carrying that patch on every MATE update, which is a fork to maintain for one
-page.
+the Debian package and maintaining a fork.
 
-So this is a separate app that shows up inside MATE Control Center anyway. MATE lists every `.desktop` file with
-`Categories=Settings`, so Pyra Settings sits in the Hardware group next to Power Management, Keyboard and Mouse.
+This separate app shows up inside MATE Control Center under the `Categories=Settings`, so Pyra Settings sits in the Hardware group.
 It pulls in only the few MATE settings that interact with Pyra-only ones (the lid action, the critical battery
 action) and leaves everything else in MATE. Both apps write the same gsettings keys, so a change in one shows up
-in the other without any syncing.
+in the other without any syncing. There's no graceful way around this toe-stepping.
 
 ## Approach
 
-- The GUI is Python 3 and GTK 3 through PyGObject, which are already on the image. No toolchain to install, and it
-  follows the GTK theme instead of shipping its own.
-- The GUI runs as the user, never as root. Root-only writes go through a `pkexec` helper with a fixed command set
-  and hard-coded paths. The caller can never name a path.
-- The polkit action is `auth_admin_keep`: you type the password once and it holds for a few minutes. Rows that go
-  through the helper always show a lock icon, because the app can't tell when that grace period has expired.
+- The GUI is Python 3 and GTK 3 through PyGObject, which are already on the image and follows the GTK theme.
+- The GUI runs as the user and root-only writes go through a `pkexec` helper with a fixed command set
+  and hard-coded paths.
+- Privileged actions use polkit via `auth_admin_keep` so you type the password once and it holds for a few minutes. 
 - Wake settings live in one INI file, `/etc/pyra-settings/pyra-settings.conf`, which a oneshot unit reapplies at
-  boot. The sysfs wake files reset on every boot, so without this nothing would stick.
+  boot.
 - The whole UI is drivable from the Pyra's controls: d-pad to move, A to activate, B to go back, X/Y to change page.
-  Touch and the nubs work too.
+  Touch and the nubs work as well.
 
-## Pages
-
-| Page | What it sets | Where it goes |
-|---|---|---|
-| Quick settings | Lid action, wake preset | Shortcuts to the two most-changed settings |
-| Suspend & wake | Lid action; which game buttons and whether the lid wake the Pyra | gsettings; sysfs through the helper |
-| Battery | Critical battery action (Shut down only) | gsettings |
-| Display & keyboard light | Screen dim depth, keyboard light level at login | `~/.config/pyra-backlight.conf` (pyra-backlight) |
-| Nubs | What each nub does, clicks, pointer and scroll speed, deadzone | `/etc/pyrainput.cfg` through the helper |
-| Volume wheel | Wheel calibration, speaker and headphone ranges | `/etc/pyra_volumed.conf` through the helper |
-
-The wake preset that motivated all of this is "everything except the shoulder buttons". If the lid action is
-Suspend and a shoulder button can still wake the machine, the app shows a warning.
 
 ## Requirements
 
 - A Pyra running the dragonbox-pyra image (Debian trixie, MATE, X11, 1280x720).
-- `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, `alsa-utils`, `pulseaudio-utils`. All are on the
-  image already.
-- `pyra-backlight` 0.4 or later, for the Display & keyboard light page.
+- `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, `alsa-utils`, `pulseaudio-utils`. Which should be on the image already.
+- `pyra-backlight` for the Display & keyboard light page.
 - The pyra-hacks fork package, `0.38+pyra3` or later, for the Volume wheel page. Stock pyra-hacks 0.38's
   `pyra_volumed` doesn't read a config file at all.
 - For per-button wake control, a kernel with dragonbox-pyra patch 0053, which adds `wakeup_keys` and
-  `wakeup_switches` to the gpio-keys devices. That kernel is in the next dragonbox-pyra image. Without it you get
-  one switch for all 14 game buttons at once (see "Limitations").
+  `wakeup_switches` to the gpio-keys devices.
+
+
+## Install
+
+```sh
+scripts/install-on-pyra.sh pyra@<address>
+```
+
+This copies the newest `.deb` from `dist/` to the Pyra and runs `sudo apt-get install -y --reinstall` on it. s
+
+By hand, copy the `.deb` over and run `sudo apt-get install -y ./pyra-settings_<version>_all.deb`.
+
+To check the install:
+
+```sh
+systemctl status pyra-settings-apply   # with no config yet: "start condition unmet", which is fine
+pkaction --action-id org.pyra.settings.wake --verbose
+```
+
+Then open it from System > Preferences > Hardware, or from MATE Control Center.
 
 ## Build
 
-The package is arch-independent, so any machine can build it.
+The package is arch-independent.
 
 ```sh
 # In a clean debian:trixie container (needs docker). Leaves the .deb in dist/
@@ -88,26 +88,7 @@ dpkg-buildpackage -us -uc -b
 `build-deb.sh` also runs `desktop-file-validate` and lintian. If your local `debian:trixie` image happens to be
 `linux/arm/v7` it runs under qemu, which is slow but works.
 
-## Install
 
-```sh
-scripts/install-on-pyra.sh pyra@<address>
-```
-
-This copies the newest `.deb` from `dist/` to the Pyra and runs `sudo apt-get install -y --reinstall` on it. sudo
-asks for the password in your terminal. Run the script as your normal user, not under local `sudo`, otherwise ssh
-reads root's ssh config and can't find your host aliases.
-
-By hand, copy the `.deb` over and run `sudo apt-get install -y ./pyra-settings_<version>_all.deb`.
-
-To check the install:
-
-```sh
-systemctl status pyra-settings-apply   # with no config yet: "start condition unmet", which is fine
-pkaction --action-id org.pyra.settings.wake --verbose
-```
-
-Then open it from System > Preferences > Hardware, or from MATE Control Center.
 
 ## Configuration
 
@@ -172,24 +153,18 @@ in [`docs/ui.md`](docs/ui.md).
   button and every game button off, only the RTC alarm could wake the machine.
 - **Wake changes take effect at the next suspend.** Nothing happens at the moment of the write. The status line
   says so.
-- **Without 0053 it's all or nothing.** The only control is the device's `power/wakeup`, which covers all 14 game
+- **Without 0053 it's all buttons or nothing.** The only control is the device's `power/wakeup`, which covers all 14 game
   buttons at once. You can turn game button wake off entirely, but you can't keep the d-pad and drop the
   shoulders.
 - **`disabled_keys` is not a wake control.** It looks like one, but it disables the button's interrupt, so the
   button stops working while the machine is awake too. The app never touches it.
-- **No idle sleep setting.** I dropped it on purpose. MATE only starts the sleep timer after the session goes idle
-  (`org.mate.session idle-delay`, 30 minutes by default), so "sleep after 5 minutes" actually meant about 35.
-  Showing the real time would mean editing a delay that also drives the screen dim, the screensaver and the lock.
+- **No idle sleep setting.** MATE only starts the sleep timer after the session goes idle
+  (`org.mate.session idle-delay`, 30 minutes by default).
   Idle sleep stays in MATE's Power Management panel.
 - **Critical battery only offers Shut down.** Hibernate isn't supported on the image, and suspending on a critical
-  battery just keeps draining it. A different value set elsewhere shows as "Custom" and is left alone until you
-  pick something.
-- **The idle delay is shown, not set.** The Display page shows it read-only, for the same reason as idle sleep.
+  battery just keeps draining it.
 - **Nub profiles override the Nubs page.** If something ran `pyrainputctl overload`, the page shows a notice.
-  Profiles loaded from command mode (Fn+Pyra, digit) aren't written to the file, so the page can't see them.
-- **Some things are deliberately not exposed**: charge control, the thermal ladder, undervolt, charger input
-  current. The thermal ladder is a safety mechanism and a bad undervolt value crashes the machine. The full list
-  and reasons are in `docs/design.md`, "Not exposed".
+
 
 ## Troubleshooting
 
@@ -238,19 +213,6 @@ cd src && GSETTINGS_SCHEMA_DIR=<schemas> GSETTINGS_BACKEND=keyfile XDG_CONFIG_HO
 The env vars for the Nubs, Volume wheel and Display pages, and how to run it headless under Xvfb, are in
 [`docs/testing.md`](docs/testing.md).
 
-Gotchas I hit doing this:
-
-- On a Wayland desktop GTK ignores your Xvfb and opens the window on the real desktop. Use `GDK_BACKEND=x11`.
-- On a PC with GTK 4 installed, importing `Gdk` before `Gtk` loads Gdk 4 and GTK 3 then fails. The app pins both
-  to 3.0. The image has no GTK 4, so this only shows up on a PC.
-- `pkill -f "python3 -m pyra_settings"` from a script also matches the shell running the command and kills it.
-  Kill by PID.
-
-### Testing wake on the hardware
-
-Someone has to be at the Pyra pressing buttons. A scripted test with nobody pressing just ends at the RTC timer
-every round and proves nothing. The procedure (detached unit, RTC alarm, `/proc/interrupts` snapshots) is in
-`docs/testing.md`.
 
 ## License
 
