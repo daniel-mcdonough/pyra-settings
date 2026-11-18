@@ -31,8 +31,8 @@
 - Volume wheel page on the PC: `PYRA_SETTINGS_VOLUMED=<conf file>` and `FAKEHELPER_VOLUMED=<same file>` (the
   fake helper skips the pyra_volumed restart), `PYRA_SETTINGS_IIO=<dir>` with `<dir>/iio:device0/name` =
   `palmas-gpadc` and an `in_voltage2_raw` to edit during a calibration. The check fails on a PC (no
-  pyra_volumed unit), so the page shows its note; to see the controls, start the window from a short script that
-  first patches it: `mock.patch.object(state, "read_volumed_check", lambda *a: "ok").start()`. For the range
+  `/usr/bin/pyra_volumed`), so the page shows its note; to see the controls, start the window from a short script
+  that first patches it: `mock.patch.object(state, "volumed_installed", lambda *a: True).start()`. For the range
   rows add `PYRA_SETTINGS_AUDIO="python3 ../tests/fakeaudio.py <state.json>"`: a fake amixer, pactl and paplay
   whose state (jack, mixer steps, sink port, volume, mute) and call log are in the JSON file; edit `"jack"` to
   plug or unplug, or a mixer step to stand in for pyra_volumed moving it.

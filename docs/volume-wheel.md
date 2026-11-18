@@ -5,45 +5,22 @@ it. The app changes the daemon's calibration and ranges through the helper's `se
 `pyra_volumed.c` on the `pyra` branch of the pyra-hacks fork (0.38+pyra3), and dragonbox-pyra's
 `device/pyra-volumed/` and `docs/fixes.md` (fix 12).
 
-## Which daemon reads the file (pyra-hacks fork vs fix 12)
+## Which daemon reads the file
 
-Two `pyra_volumed` builds are in circulation, and only one reads the file:
+Only the pyra-hacks fork's `/usr/bin/pyra_volumed` (0.38+pyra3, `pyra` branch) reads `/etc/pyra_volumed.conf`
+(`cal`, `range`, `hsrange`). Stock pyra-hacks 0.38 and dragonbox-pyra fix 12's override (values hard-coded,
+started through a drop-in) don't; fix 12 stands aside when the image installs pyra-settings with the fork
+(dragonbox-pyra prep fix 26).
 
-| Build | Binary | Reads `/etc/pyra_volumed.conf` |
-|---|---|---|
-| pyra-hacks fork package, `0.38+pyra2` and later (`pyra` branch) | `/usr/bin/pyra_volumed` | Yes: `cal`, `range`, `hsrange` |
-| dragonbox-pyra fix 12 override (`device/pyra-volumed/`, built on the card) | `/usr/local/bin/pyra_volumed`, started by `/usr/local/sbin/pyra-volumed-run` through the drop-in `/etc/systemd/system/pyra_volumed.service.d/calibrated.conf` | No: values hard-coded |
-| Stock pyra-hacks 0.38 | `/usr/bin/pyra_volumed` | No: linear mapping, speakers only |
+### The check (state.py volumed_installed)
 
-The unit is `pyra_volumed.service` in all three cases. With the fix 12 drop-in in place, `set-volume` saves the
-file and restarts the daemon, but the daemon ignores the file. dragonbox-pyra `docs/fixes.md` says to undo fix
-12 (`device/pyra-volumed/install.sh --undo`) once the fork package is installed.
+The page shows its controls if `/usr/bin/pyra_volumed` exists. Otherwise the page stays and its controls are
+replaced by one line, `VOLUMED_NOTE`. It doesn't hide. Checked once at start.
 
-### The check (state.py volumed_check)
-
-The page shows its controls only if both hold. All of it is readable as the user.
-
-1. `systemctl show --value -p ExecStart pyra_volumed.service` has exactly one entry, with
-   `path=/usr/bin/pyra_volumed`. That rules out fix 12's drop-in (`path=/usr/local/sbin/pyra-volumed-run`) and
-   any other override. An unknown unit prints an empty line and exits 0.
-2. `/usr/bin/pyra_volumed` contains the bytes `/etc/pyra_volumed.conf`. The fork has it as a string literal
-   (`#define CONFIG` in `pyra_volumed.c`). Stock 0.38 has no such string. This tests what the binary does, not
-   its version, so an upstream release above 0.38 without the feature still fails the check.
-
-The rejected candidates: the drop-in's absence alone passes stock 0.38. The `dpkg-query` version alone passes the
-fork even when fix 12 overrides it, and a version comparison trusts the version scheme.
-
-**pyra2 vs pyra3:** the check passes 0.38+pyra2, which reads the file but flutters with a
-raised `lo`, and no string in the binary tells the two apart. So the package declares `Depends: pyra-hacks (>=
-0.38+pyra3)` (apt knows the version), and `VOLUMED_NO_CONF` asks for "0.38+pyra3 or later". The check stays as
-it is, for fix 12's override. Consequence: pyra-settings 0.9 and later won't install where the fork isn't
-installed or available to apt, so the dragonbox-pyra image has to ship the fork first.
-
-When the check fails, the page stays and its controls are replaced by one line of explanation
-(`VOLUMED_NOTES`). It doesn't hide. Results: `VOLUMED_MISSING` (no unit, or systemctl failed),
-`VOLUMED_OVERRIDDEN` (ExecStart is something else), `VOLUMED_NO_CONF` (the binary lacks the string, or can't be
-read). The GUI runs the check when it builds the page. A restart of the daemon doesn't change the result, so it
-isn't rerun after a save. Tests: `tests/test_state.py` `VolumedCheckTest`.
+No check for stock 0.38, pyra2 or fix 12's drop-in: the app was unreleased while those existed, so no install
+pairs it with them. Earlier versions of the check read the unit's ExecStart and looked for the config path in the
+binary (removed in 0.14). The package's `Recommends: pyra-hacks (>= 0.38+pyra3)` keeps apt from pulling an older
+build.
 
 ## File syntax (read_config)
 

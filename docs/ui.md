@@ -206,7 +206,7 @@ labelled them just "Fine"), with the lock (it writes through `set-nubs` too).
 Not in the mockup. Drafted from the row kinds above; the range rows replaced the earlier Quietest/Loudest
 presets (below). Keys, file syntax and the daemons: `volume-wheel.md`. Every row but the info row goes through `set-volume`, so each has the lock.
 
-When the check (`volume-wheel.md`, "The check") fails, the page holds one row with its `VOLUMED_NOTES` line and
+When the check (`volume-wheel.md`, "The check") fails, the page holds one row with its `VOLUMED_NOTE` line and
 nothing else. Otherwise:
 
 1. Header **Speakers** (`range`, steps of Handsfree Playback Volume, -52..+6 dB).

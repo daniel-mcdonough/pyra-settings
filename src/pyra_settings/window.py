@@ -534,7 +534,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.read_backlight()
         self.read_nubs()
         # Once: a restart of the daemon doesn't change the result (docs/volume-wheel.md "The check").
-        self.volumed = st.read_volumed_check()
+        self.volumed = st.volumed_installed()
         self.read_volume()
         self.read_jack()
         self.rebuild()
@@ -1025,8 +1025,8 @@ class PyraSettingsWindow(Gtk.Window):
 
     def _volume_rows(self):
         self.reading_row = None
-        if self.volumed != st.VOLUMED_OK:
-            return [NoteRow("volume-note", st.VOLUMED_NOTES[self.volumed])]
+        if not self.volumed:
+            return [NoteRow("volume-note", st.VOLUMED_NOTE)]
         v = self.volume
         # File unreadable: the rows stay, greyed out, with no option selected; the status line says why.
         sensitive = v is not None and not self.busy and self.cal is None and self.rng is None
@@ -1075,7 +1075,7 @@ class PyraSettingsWindow(Gtk.Window):
 
     def _poll_wheel(self):
         """Keep the wheel reading and the jack live while the page is shown, and the preview in place."""
-        if self.page != VOLUME_PAGE or self.volumed != st.VOLUMED_OK:
+        if self.page != VOLUME_PAGE or not self.volumed:
             return True
         self.poll_ticks += 1
         if self.rng is not None:

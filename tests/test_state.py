@@ -310,12 +310,6 @@ class NubsTest(unittest.TestCase):
                 self.assertEqual(st.current_move(st.parse_pyrainput(text), side), option)
 
 
-def exec_start(*paths):
-    """systemctl show --value -p ExecStart output, one entry per path (as systemd 257 prints it)."""
-    return " ".join("{ path=%s ; argv[]=%s ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; "
-                    "code=(null) ; status=0/0 }" % (p, p) for p in paths) + "\n"
-
-
 class IdleDimCheckTest(unittest.TestCase):
     """The Display page shows its rows only if pyra-backlight's pyra-idle-dim is installed."""
 
@@ -336,58 +330,22 @@ class IdleDimCheckTest(unittest.TestCase):
 
 
 class VolumedCheckTest(unittest.TestCase):
-    """The volume wheel page shows its controls only if the running pyra_volumed reads its file."""
+    """The volume wheel page shows its controls only if pyra_volumed is installed."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.binary = os.path.join(tmp.name, "pyra_volumed")
 
-    def write_binary(self, data):
-        with open(self.binary, "wb") as f:
-            f.write(data)
+    def test_installed(self):
+        open(self.binary, "w").close()
+        self.assertTrue(st.volumed_installed(self.binary))
 
-    def test_fork_package(self):
-        self.write_binary(b"\x7fELF\0...\0/etc/pyra_volumed.conf\0cal %lf\0")
-        self.assertEqual(st.volumed_check(exec_start(st.VOLUMED_BINARY), self.binary), st.VOLUMED_OK)
+    def test_not_installed(self):
+        self.assertFalse(st.volumed_installed(self.binary))
 
-    def test_stock_package(self):
-        self.write_binary(b"\x7fELF\0...\0Handsfree Playback Volume\0")
-        self.assertEqual(st.volumed_check(exec_start(st.VOLUMED_BINARY), self.binary), st.VOLUMED_NO_CONF)
-
-    def test_unreadable_binary(self):
-        self.assertEqual(st.volumed_check(exec_start(st.VOLUMED_BINARY), self.binary), st.VOLUMED_NO_CONF)
-
-    def test_fix_12_drop_in(self):
-        # The fork binary is installed, but the drop-in starts fix 12's build instead.
-        self.write_binary(b"/etc/pyra_volumed.conf")
-        self.assertEqual(st.volumed_check(exec_start("/usr/local/sbin/pyra-volumed-run"), self.binary),
-                         st.VOLUMED_OVERRIDDEN)
-
-    def test_extra_exec_start(self):
-        self.write_binary(b"/etc/pyra_volumed.conf")
-        out = exec_start(st.VOLUMED_BINARY, "/usr/local/bin/other")
-        self.assertEqual(st.volumed_exec_paths(out), [st.VOLUMED_BINARY, "/usr/local/bin/other"])
-        self.assertEqual(st.volumed_check(out, self.binary), st.VOLUMED_OVERRIDDEN)
-
-    def test_no_unit(self):
-        # An unknown unit prints an empty line and exits 0; a failed systemctl gives None.
-        for out in ("\n", "", None):
-            self.assertEqual(st.volumed_check(out, self.binary), st.VOLUMED_MISSING)
-
-    def test_systemctl_fails(self):
-        with mock.patch.object(st, "VOLUMED_SHOW", ["/nonexistent/systemctl"]):
-            self.assertEqual(st.read_volumed_check(self.binary), st.VOLUMED_MISSING)
-        with mock.patch.object(st, "VOLUMED_SHOW", ["/bin/sh", "-c", "exit 1"]):
-            self.assertEqual(st.read_volumed_check(self.binary), st.VOLUMED_MISSING)
-
-    def test_reads_systemctl(self):
-        self.write_binary(b"/etc/pyra_volumed.conf")
-        with mock.patch.object(st, "VOLUMED_SHOW", ["printf", "%s", exec_start(st.VOLUMED_BINARY)]):
-            self.assertEqual(st.read_volumed_check(self.binary), st.VOLUMED_OK)
-
-    def test_every_failure_has_a_note(self):
-        self.assertEqual(set(st.VOLUMED_NOTES), {st.VOLUMED_MISSING, st.VOLUMED_OVERRIDDEN, st.VOLUMED_NO_CONF})
+    def test_default_path(self):
+        self.assertEqual(st.VOLUMED_BINARY, "/usr/bin/pyra_volumed")
 
 
 class VolumePageTest(unittest.TestCase):
