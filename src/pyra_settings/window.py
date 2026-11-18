@@ -634,21 +634,11 @@ class PyraSettingsWindow(Gtk.Window):
         self.status(st.SAVED, SAVED_MS)
 
     def set_wake_codes(self, codes):
-        if self.wake.has_0053:
-            self.run_helper(st.game_buttons_argv(codes),
-                            wake=st.WakeState(True, self.wake.keys, codes, self.wake.lid_wake))
-        else:
-            self.set_game_wake(bool(codes))
-
-    def set_game_wake(self, on):
-        # Without 0053 the helper turns power/wakeup on for any code list; all of keys says what it means.
-        codes = self.wake.keys if on else frozenset()
-        self.run_helper(st.game_buttons_argv(codes),
-                        wake=st.WakeState(self.wake.has_0053, self.wake.keys, codes, self.wake.lid_wake))
+        self.run_helper(st.game_buttons_argv(codes), wake=st.WakeState(self.wake.keys, codes, self.wake.lid_wake))
 
     def set_lid_wake(self, on):
         self.run_helper(st.lid_argv(on),
-                        wake=st.WakeState(self.wake.has_0053, self.wake.keys, self.wake.wake, on))
+                        wake=st.WakeState(self.wake.keys, self.wake.wake, on))
 
     def set_nubs(self, changes):
         """set-nubs; the daemon reloads, so it applies at once, not at the next suspend."""
@@ -864,7 +854,7 @@ class PyraSettingsWindow(Gtk.Window):
     def _warning_rows(self, key):
         if not self.wake or not st.show_warning(self.wake, self._values(st.LID_KEYS)):
             return []
-        text, action = st.warning_text(self.wake)
+        text, action = st.WARNING
         return [WarningRow(key, text, action, lambda: self.set_wake_codes(st.warning_fix(self.wake)))]
 
     def _lid_row(self):
@@ -880,16 +870,14 @@ class PyraSettingsWindow(Gtk.Window):
         return "Custom" if current is None else ""
 
     def _game_rows(self, with_groups):
-        """The preset (and on Suspend & wake the groups) with 0053, else the one fallback switch."""
+        """The preset, and on Suspend & wake the groups."""
         if self.wake is None:
-            # sysfs unreadable: the fallback switch, greyed out; the status line says why.
-            return [SwitchRow("game", "Game buttons wake the Pyra", "", False, None, locked=True,
-                              sensitive=False)]
+            # sysfs unreadable (or no 0053): the preset alone, greyed out, nothing selected; the status line says
+            # why.
+            return [ChoiceRow("preset", "Game buttons that wake the Pyra", "", st.PRESETS, None, None,
+                              self._focus_row, locked=True, sensitive=False)]
         w = self.wake
         sensitive = not self.busy
-        if not w.has_0053:
-            return [SwitchRow("game", "Game buttons wake the Pyra", "Per-button control needs a newer kernel.",
-                              w.game_wake, self.set_game_wake, locked=True, sensitive=sensitive)]
         preset = st.current_preset(w)
         rows = [ChoiceRow("preset", "Game buttons that wake the Pyra",
                           "Power button always wakes" if preset else "Custom selection", st.PRESETS, preset,
@@ -905,10 +893,8 @@ class PyraSettingsWindow(Gtk.Window):
         return rows
 
     def _quick_rows(self):
-        has_0053 = self.wake.has_0053 if self.wake else False
         return (self._warning_rows("quick-warning") + [self._lid_row()] + self._game_rows(False)
-                + [ButtonRow("more", "More wake options",
-                             "Choose individual buttons, lid wake" if has_0053 else "Lid wake", "Open",
+                + [ButtonRow("more", "More wake options", "Choose individual buttons, lid wake", "Open",
                              self._open_wake_page)])
 
     def _wake_rows(self):

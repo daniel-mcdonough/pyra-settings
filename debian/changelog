@@ -3,6 +3,9 @@ pyra-settings (0.14) trixie; urgency=medium
   * Packaging: pyra-hacks and pyra-backlight are Recommends, not Depends, so
     the package installs without them. The Volume wheel and Display pages
     each say when their daemon is missing.
+  * Wake: no fallback for kernels without patch 0053, which every image
+    has. Without it the wake rows show as unreadable and the helper
+    writes nothing.
   * Packaging: the description covers every page.
   * Release builds on GitHub from a v* tag.
 

@@ -11,7 +11,8 @@ The UI layout is defined in `docs/ui.md`. This file says what the app does and w
 ## Status
 
 - The whole app is tested on the Pyra, every page (`ui.md`, "Checked on the Pyra"). The wake rows were tested
-  on a kernel without 0053, so the per-button wake rows are not yet run end to end on a 0053 kernel.
+  on a kernel without 0053, through the all-or-nothing fallback that 0.14 removed, so the wake rows as they
+  now are (per-button, 0053 only) are not yet run end to end on the Pyra.
 - Helper, config file and boot apply also tested on a fake sysfs.
 - v2 pages: Nubs (`nubs.md`), Volume wheel (`volume-wheel.md`), Display & keyboard light. Package at 0.13.
 - Image: dragonbox-pyra prep fix 26 installs the package with the pyra-hacks fork 0.38+pyra3 and sets fix 12
@@ -28,7 +29,7 @@ The UI layout is defined in `docs/ui.md`. This file says what the app does and w
 | Privilege | `polkitd` and `pkexec` 126-2, already on the image |
 | User | `pyra`, desktop session through lightdm |
 | Screen | 1280x720 landscape, touchscreen (`TSC2007`), nubs as mouse |
-| Kernel | The next image's kernel, with 0053. The fallback covers kernels without it |
+| Kernel | The image's kernel, with 0053. Every image ships it |
 
 ## Decisions
 
@@ -38,7 +39,7 @@ The UI layout is defined in `docs/ui.md`. This file says what the app does and w
 | Idle sleep | Not in the app; MATE's Power Management panel only | Not Pyra-specific. MATE starts the sleep timer only once the session is idle (`org.mate.session idle-delay`, 30 min from Debian's `10_mate-common.gschema.override`), so "5 min" meant about 35. Showing the real time would mean subtracting a delay that also drives the screen dim and lock |
 | polkit default | `auth_admin_keep`: password once, kept for a few minutes | Every later root-level setting inherits it. `yes` would let any process in the session change root settings |
 | Release timing | After the next Pyra image, which carries the 0053 kernel | Per-button wake needs 0053 |
-| Kernels without 0053 | Keep a one-switch fallback through `power/wakeup` | It costs one file-exists check, and covers the package on an older image |
+| Kernels without 0053 | No fallback: the wake rows show as unreadable and the helper changes nothing | Every image ships 0053, and the app was unreleased while older kernels were in use. An all-or-nothing `power/wakeup` fallback was dropped in 0.14 |
 | Toolkit | Python 3 + GTK 3 (PyGObject) | Already on the image, no toolchain needed |
 | GUI privilege | The GUI runs as the user, never as root | A root GUI exposes the whole toolkit to the session |
 | Root writes | A `pkexec` helper with a fixed command set and hard-coded sysfs paths | The caller can never name a path |
@@ -80,7 +81,6 @@ duplicating panels that already work.
 | Setting | Written to | Who writes | Default on the image |
 |---|---|---|---|
 | Game buttons that wake the Pyra | `pyra-game-buttons/wakeup_keys` (0053) | Helper, as root | All 14 (device tree) |
-| Fallback without 0053 | `pyra-game-buttons/power/wakeup` | Helper, as root | `enabled` |
 | Lid wakes the Pyra | On: `pyra-lid-wakeup/wakeup_switches` = `0` (0053) and `power/wakeup` = `enabled`. Off: `power/wakeup` = `disabled` | Helper, as root | On |
 | Lid action, battery and AC | gsettings `org.mate.power-manager button-lid-battery`, `button-lid-ac` | GUI, as the user | `blank` |
 | Critical battery action | gsettings `org.mate.power-manager action-critical-battery` | GUI, as the user | `shutdown` (image fix 24) |
@@ -118,8 +118,8 @@ The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kerne
 
 **Behaviour the app must have, whatever the layout:**
 
-- Detect 0053 by whether `wakeup_keys` exists, never by kernel version. Without it, offer one "game buttons wake
-  the Pyra" switch and say that per-button control needs a newer kernel.
+- Detect 0053 by whether `wakeup_keys` exists, never by kernel version. Without it, show the wake settings as
+  unreadable, naming 0053, and change nothing.
 - Read which codes exist from the device's `keys` file, and button names from the device tree
   (`of_node/<node>/label`). The code table is only the fallback for names.
 - Offer the preset "everything except the shoulder buttons" (`102-109,272-273`), the motivating case.
@@ -343,16 +343,14 @@ at 14 through idle while the keyboard light still went off.
    - `src/pyra_settings/state.py` holds everything testable without GTK (sysfs reading, presets, groups, the
      warning, "Custom", helper argv, exit-code messages; `tests/test_state.py`). `window.py` is the GTK side.
    - Wake state read from sysfs: `wake` is `wakeup_keys` ∩ `keys` with `power/wakeup=enabled`, empty with it
-     `disabled` (it gates `wakeup_keys`); without 0053, all of `keys` or nothing. Lid wake is `power/wakeup`
-     enabled and, with 0053, `0` in `wakeup_switches`.
+     `disabled` (it gates `wakeup_keys`). Lid wake is `power/wakeup` enabled and `0` in `wakeup_switches`. No
+     `wakeup_keys`: `ValueError` naming 0053, shown as unreadable.
    - The helper runs through `Gio.Subprocess` asynchronously, so the window keeps drawing while mate-polkit asks
      for the password. The control shows the requested value meanwhile; when the helper exits, sysfs is read
      again, so a cancel or error puts the control back by itself. Wake controls are insensitive while it runs.
    - The status line text per exit code: 0 "Saved. Takes effect at the next suspend."; 126 "Password
      cancelled. Nothing changed."; 127 "Not authorized. Nothing changed."; 2 "Refused: <helper's reason>";
      1 "Couldn't save: <helper's last stderr line>". Anything else shows the code.
-   - Without 0053 the game-buttons switch sends every code in `keys` (on) or `none` (off); the helper turns that
-     into `power/wakeup`.
    - The bag warning shows when either lid key (battery or AC) is `suspend`, not only when both are.
    - gsettings `changed` rebuilds the pages, so a change made in MATE's panel shows at once.
    - Unreadable sysfs (`OSError`, `ValueError` from `read_wake_state`): `wake` is `None`, the wake rows are built
@@ -370,7 +368,7 @@ at 14 through idle while the keyboard light still went off.
    - checks each code against that device's `keys` file and rejects anything else;
    - writes the config file and sysfs, so a change is live and persistent;
    - refuses the power button;
-   - falls back to `power/wakeup` without 0053 (on if any game button is chosen, off if none), and logs one line.
+   - without 0053 (no `wakeup_keys` or `wakeup_switches`) fails and writes nothing, for `set-wake` and `apply`.
 
    As written:
    - `set-wake game-buttons <codes>|none` takes a kernel bitmap list (`102-109,272-273`), writes `wakeup_keys` as

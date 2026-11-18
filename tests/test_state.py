@@ -32,19 +32,18 @@ class ReadWakeStateTest(unittest.TestCase):
     def tree(self, with_0053=True):
         return fakesysfs.build(os.path.join(self.tmp, "sys-%s" % with_0053), with_0053=with_0053)
 
-    def test_defaults_with_0053(self):
+    def test_defaults(self):
         s = st.read_wake_state(self.tree())
-        self.assertTrue(s.has_0053)
         self.assertEqual(s.keys, ALL)
         self.assertEqual(s.wake, ALL)
         self.assertTrue(s.lid_wake)
 
-    def test_defaults_without_0053(self):
-        s = st.read_wake_state(self.tree(with_0053=False))
-        self.assertFalse(s.has_0053)
-        self.assertEqual(s.wake, ALL)
-        self.assertTrue(s.game_wake)
-        self.assertTrue(s.lid_wake)
+    def test_without_0053_raises(self):
+        root = self.tree(with_0053=False)
+        with self.assertRaises(ValueError) as cm:
+            st.read_wake_state(root)
+        self.assertEqual(st.wake_error_text(cm.exception, root),
+                         "Can't read the wake settings: the kernel lacks dragonbox-pyra patch 0053 (no wakeup_keys)")
 
     def test_wakeup_keys_read(self):
         root = self.tree()
@@ -52,12 +51,9 @@ class ReadWakeStateTest(unittest.TestCase):
         self.assertEqual(st.read_wake_state(root).wake, NO_SHOULDERS)
 
     def test_power_wakeup_disabled_gates_wakeup_keys(self):
-        for with_0053 in (True, False):
-            root = self.tree(with_0053)
-            write(os.path.join(root, "pyra-game-buttons", "power", "wakeup"), "disabled")
-            s = st.read_wake_state(root)
-            self.assertEqual(s.wake, frozenset())
-            self.assertFalse(s.game_wake)
+        root = self.tree()
+        write(os.path.join(root, "pyra-game-buttons", "power", "wakeup"), "disabled")
+        self.assertEqual(st.read_wake_state(root).wake, frozenset())
 
     def test_lid_off_by_power_wakeup(self):
         root = self.tree()
@@ -69,12 +65,15 @@ class ReadWakeStateTest(unittest.TestCase):
         write(os.path.join(root, "pyra-lid-wakeup", "wakeup_switches"), "")
         self.assertFalse(st.read_wake_state(root).lid_wake)
 
-    def test_missing_device_raises(self):
+    def test_missing_file_raises(self):
+        root = self.tree()
+        os.unlink(os.path.join(root, "pyra-game-buttons", "keys"))
         with self.assertRaises(OSError):
-            st.read_wake_state(os.path.join(self.tmp, "nothing"))
+            st.read_wake_state(root)
 
     def test_error_text_is_short(self):
-        root = os.path.join(self.tmp, "nothing")
+        root = self.tree()
+        os.unlink(os.path.join(root, "pyra-game-buttons", "keys"))
         with self.assertRaises(OSError) as cm:
             st.read_wake_state(root)
         self.assertEqual(st.wake_error_text(cm.exception, root),
@@ -83,14 +82,15 @@ class ReadWakeStateTest(unittest.TestCase):
                          "Can't read the wake settings: not a code list: 'x'")
 
     def test_env_sets_root(self):
-        root = self.tree(with_0053=False)
+        root = self.tree()
+        write(os.path.join(root, "pyra-game-buttons", "wakeup_keys"), "102")
         with mock.patch.object(st, "SYSFS_ROOT", root):
-            self.assertFalse(st.read_wake_state().has_0053)
+            self.assertEqual(st.read_wake_state().wake, {102})
 
 
 class PresetGroupTest(unittest.TestCase):
-    def state(self, wake, keys=ALL, has_0053=True, lid=True):
-        return st.WakeState(has_0053, keys, wake, lid)
+    def state(self, wake, keys=ALL, lid=True):
+        return st.WakeState(keys, wake, lid)
 
     def test_presets(self):
         self.assertEqual(st.preset_codes(st.PRESET_ALL_BUT_SHOULDERS, ALL), NO_SHOULDERS)
@@ -121,21 +121,14 @@ class PresetGroupTest(unittest.TestCase):
         self.assertEqual(face.codes, {102})
         self.assertEqual(st.group_state(face, frozenset({102})), "on")
 
-    def test_warning_with_0053(self):
+    def test_warning(self):
         self.assertTrue(st.show_warning(self.state(ALL), ["suspend", "suspend"]))
         self.assertTrue(st.show_warning(self.state(frozenset({54})), ["blank", "suspend"]))
         self.assertFalse(st.show_warning(self.state(NO_SHOULDERS), ["suspend", "suspend"]))
         self.assertFalse(st.show_warning(self.state(ALL), ["blank", "blank"]))
         self.assertFalse(st.show_warning(self.state(frozenset()), ["suspend", "suspend"]))
         self.assertEqual(st.warning_fix(self.state(ALL)), NO_SHOULDERS)
-        self.assertIn("Shoulder", st.warning_text(self.state(ALL))[0])
-
-    def test_warning_without_0053(self):
-        s = self.state(ALL, has_0053=False)
-        self.assertTrue(st.show_warning(s, ["suspend", "suspend"]))
-        self.assertFalse(st.show_warning(self.state(frozenset(), has_0053=False), ["suspend", "suspend"]))
-        self.assertEqual(st.warning_fix(s), frozenset())
-        self.assertEqual(st.warning_text(s)[1], "Turn off game-button wake")
+        self.assertIn("Shoulder", st.WARNING[0])
 
 
 class ChoiceValueTest(unittest.TestCase):

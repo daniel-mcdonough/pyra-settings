@@ -34,7 +34,8 @@ Every `gpio-keys` platform device gets two files beside `keys`, `switches`, `dis
 
 Detect by the file's existence (`/sys/devices/platform/pyra-game-buttons/wakeup_keys`), never by kernel release
 string. Without it the only control is the whole device: `pyra-game-buttons/power/wakeup` = `enabled` or
-`disabled`, all 14 game buttons at once.
+`disabled`, all 14 game buttons at once. Every image ships 0053, so the app has no fallback for this: the wake
+rows show as unreadable and the helper refuses to write.
 
 ## `pyra-game-buttons`: 14 keys
 
@@ -81,7 +82,7 @@ never touches `user-buttons`, so BTN1's wake stays at the device tree default (o
 
 `switches` = `0` (`SW_LID`), `wakeup_switches` = `0`, `power/wakeup` = `enabled`. The DT node also has a
 `wwan_wakeup` key (code 240), but it isn't registered: `keys` is empty. The lid is controlled by
-`wakeup_switches` (`0` on, empty off) or, without 0053, `power/wakeup`. The helper turns it off with
+`wakeup_switches` (`0` on, empty off). The helper turns it off with
 `power/wakeup=disabled`, never an empty `wakeup_switches` (untested, like the empty `wakeup_keys` write). **Not
 tested** by closing and opening the lid.
 

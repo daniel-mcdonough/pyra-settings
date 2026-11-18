@@ -92,49 +92,39 @@ class WakeState:
     """The wake sources as sysfs has them now.
 
     keys: game-button codes the device has. wake: codes that wake the Pyra at the next suspend (empty when
-    power/wakeup is disabled, which gates wakeup_keys). Without 0053, wake is all of keys or nothing.
+    power/wakeup is disabled, which gates wakeup_keys).
     """
 
-    def __init__(self, has_0053, keys, wake, lid_wake):
-        self.has_0053 = has_0053
+    def __init__(self, keys, wake, lid_wake):
         self.keys = frozenset(keys)
         self.wake = frozenset(wake)
         self.lid_wake = lid_wake
-
-    @property
-    def game_wake(self):
-        """Any game button wakes the Pyra."""
-        return bool(self.wake)
 
     @property
     def shoulder_wake(self):
         return bool(self.wake & SHOULDERS)
 
     def __repr__(self):
-        return "WakeState(%r, %s, %s, lid=%r)" % (self.has_0053, format_list(self.keys), format_list(self.wake),
-                                                   self.lid_wake)
+        return "WakeState(%s, %s, lid=%r)" % (format_list(self.keys), format_list(self.wake), self.lid_wake)
+
+
+NO_0053 = "the kernel lacks dragonbox-pyra patch 0053 (no wakeup_keys)"
 
 
 def read_wake_state(root=None):
-    """Read the game buttons and the lid from sysfs. Raises OSError or ValueError if a file is missing or bad."""
+    """Read the game buttons and the lid from sysfs. Raises OSError or ValueError if a file is missing or bad,
+    ValueError naming 0053 on a kernel without it (every image has it; detected by the file, never by version)."""
     root = root or SYSFS_ROOT
     game = os.path.join(root, GAME_DEV)
     lid = os.path.join(root, LID_DEV)
-    # 0053 is detected by the file, never by kernel version.
-    has_0053 = os.path.exists(os.path.join(game, "wakeup_keys"))
+    if not os.path.exists(os.path.join(game, "wakeup_keys")):
+        raise ValueError(NO_0053)
     keys = parse_list(_read(os.path.join(game, "keys")))
     enabled = _read(os.path.join(game, "power", "wakeup")) == "enabled"
-    if not enabled:
-        wake = set()
-    elif has_0053:
-        wake = parse_list(_read(os.path.join(game, "wakeup_keys"))) & keys
-    else:
-        wake = set(keys)
-    lid_wake = _read(os.path.join(lid, "power", "wakeup")) == "enabled"
-    switches = os.path.join(lid, "wakeup_switches")
-    if lid_wake and os.path.exists(switches):
-        lid_wake = SW_LID in parse_list(_read(switches))
-    return WakeState(has_0053, keys, wake, lid_wake)
+    wake = parse_list(_read(os.path.join(game, "wakeup_keys"))) & keys if enabled else set()
+    lid_wake = (_read(os.path.join(lid, "power", "wakeup")) == "enabled"
+                and SW_LID in parse_list(_read(os.path.join(lid, "wakeup_switches"))))
+    return WakeState(keys, wake, lid_wake)
 
 
 def preset_codes(preset, keys):
@@ -177,24 +167,17 @@ def with_group(wake, group, on):
 
 
 def show_warning(state, lid_values):
-    """The bag warning: the lid suspends (on battery or AC) and a shoulder button, or without 0053 any game
-    button, still wakes the Pyra."""
-    if "suspend" not in lid_values:
-        return False
-    return state.shoulder_wake if state.has_0053 else state.game_wake
+    """The bag warning: the lid suspends (on battery or AC) and a shoulder button still wakes the Pyra."""
+    return "suspend" in lid_values and state.shoulder_wake
 
 
-def warning_text(state):
-    if state.has_0053:
-        return ("Shoulder buttons can wake the Pyra while the lid is closed, for example in a bag.",
-                "Turn off shoulder wake")
-    return ("Game buttons can wake the Pyra while the lid is closed, for example in a bag.",
-            "Turn off game-button wake")
+WARNING = ("Shoulder buttons can wake the Pyra while the lid is closed, for example in a bag.",
+           "Turn off shoulder wake")
 
 
 def warning_fix(state):
     """The wake set the warning's action asks for."""
-    return frozenset(state.wake - SHOULDERS) if state.has_0053 else frozenset()
+    return frozenset(state.wake - SHOULDERS)
 
 
 def choice_value(values, options):

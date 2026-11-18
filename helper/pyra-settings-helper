@@ -125,9 +125,11 @@ def write_attr(path, value):
         raise Failed("kernel refused %r for %s: %s" % (value, path, e.strerror))
 
 
-def has_0053(dev):
-    """Patch 0053 adds wakeup_keys and wakeup_switches. Detected by the file, never by kernel version."""
-    return os.path.exists(os.path.join(dev, "wakeup_keys"))
+def require_0053(dev, attr):
+    """Patch 0053 adds wakeup_keys and wakeup_switches; every image has it. Detected by the file, never by kernel
+    version. Without it the helper changes nothing."""
+    if not os.path.exists(os.path.join(dev, attr)):
+        raise Failed("no %s on %s: the kernel lacks dragonbox-pyra patch 0053" % (attr, os.path.basename(dev)))
 
 
 def check_game_codes(dev, codes):
@@ -146,36 +148,33 @@ def apply_game_buttons(codes):
     """Make exactly `codes` wake the Pyra. Validates first, then writes sysfs."""
     dev = device_dir(GAME_BUTTONS)
     check_game_codes(dev, codes)
+    require_0053(dev, "wakeup_keys")
     wakeup = os.path.join(dev, "power", "wakeup")
     if not codes:
         # "None" goes through power/wakeup until an empty wakeup_keys write is tested.
         write_attr(wakeup, "disabled")
-    elif has_0053(dev):
+    else:
         write_attr(os.path.join(dev, "wakeup_keys"), format_list(codes))
         # A previous "none" left the whole device disabled; power/wakeup still gates wakeup_keys.
-        write_attr(wakeup, "enabled")
-    else:
-        log("no wakeup_keys (kernel without patch 0053): all game buttons wake, through power/wakeup")
         write_attr(wakeup, "enabled")
 
 
 def apply_lid(on):
     dev = device_dir(LID)
+    require_0053(dev, "wakeup_switches")
     wakeup = os.path.join(dev, "power", "wakeup")
     if not on:
         # The lid device has one registered input, the lid switch, so power/wakeup covers it, and an empty
         # wakeup_switches write is as untested as an empty wakeup_keys one.
         write_attr(wakeup, "disabled")
         return
-    switches = os.path.join(dev, "wakeup_switches")
-    if os.path.exists(switches):
-        try:
-            known = parse_list(read_attr(os.path.join(dev, "switches")))
-        except ValueError as e:
-            raise Failed("cannot parse %s/switches: %s" % (dev, e))
-        if SW_LID not in known:
-            raise Failed("%s has no lid switch" % os.path.basename(dev))
-        write_attr(switches, str(SW_LID))
+    try:
+        known = parse_list(read_attr(os.path.join(dev, "switches")))
+    except ValueError as e:
+        raise Failed("cannot parse %s/switches: %s" % (dev, e))
+    if SW_LID not in known:
+        raise Failed("%s has no lid switch" % os.path.basename(dev))
+    write_attr(os.path.join(dev, "wakeup_switches"), str(SW_LID))
     write_attr(wakeup, "enabled")
 
 

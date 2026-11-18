@@ -51,8 +51,8 @@ in the other without any syncing. There's no graceful way around this toe-steppi
   and shows no settings.
 - The pyra-hacks fork package, `0.38+pyra3` or later, for the Volume wheel page. Stock pyra-hacks 0.38's
   `pyra_volumed` doesn't read a config file at all.
-- For per-button wake control, a kernel with dragonbox-pyra patch 0053, which adds `wakeup_keys` and
-  `wakeup_switches` to the gpio-keys devices.
+- A kernel with dragonbox-pyra patch 0053, which adds `wakeup_keys` and `wakeup_switches` to the gpio-keys
+  devices. Every dragonbox-pyra image has it. Without it the wake settings show as unreadable.
 
 ## Install
 
@@ -164,9 +164,6 @@ in [`docs/ui.md`](docs/ui.md).
   button and every game button off, only the RTC alarm could wake the machine.
 - **Wake changes take effect at the next suspend.** Nothing happens at the moment of the write. The status line
   says so.
-- **Without 0053 it's all buttons or nothing.** The only control is the device's `power/wakeup`, which covers all 14 game
-  buttons at once. You can turn game button wake off entirely, but you can't keep the d-pad and drop the
-  shoulders.
 - **`disabled_keys` is not a wake control.** It looks like one, but it disables the button's interrupt, so the
   button stops working while the machine is awake too. The app never touches it.
 - **No idle sleep setting.** MATE only starts the sleep timer after the session goes idle
@@ -214,7 +211,7 @@ the app uses, and a fake helper, since `pkexec` would otherwise go for the real 
 
 ```sh
 glib-compile-schemas <schemas>     # after copying tests/schemas/*.xml into it
-python3 tests/fakesysfs.py <sys> [--no-0053]
+python3 tests/fakesysfs.py <sys> [--no-0053]   # --no-0053: the unreadable wake rows
 cd src && GSETTINGS_SCHEMA_DIR=<schemas> GSETTINGS_BACKEND=keyfile XDG_CONFIG_HOME=<cfg> \
   PYRA_SETTINGS_SYSFS=<sys> PYRA_SETTINGS_HELPER="python3 ../tests/fakehelper.py <sys> <conf>" \
   python3 -m pyra_settings

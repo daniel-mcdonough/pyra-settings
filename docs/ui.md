@@ -92,11 +92,9 @@ The app never rewrites a value the user didn't touch.
 
 1. The warnings, if any (see "Warnings").
 2. Choice: **When the lid closes**: Suspend / Blank screen / Do nothing.
-3. With 0053: choice **Game buttons that wake the Pyra**: All but shoulders / All / None. Subtitle "Power button
+3. Choice **Game buttons that wake the Pyra**: All but shoulders / All / None. Subtitle "Power button
    always wakes", or "Custom selection" when the buttons match no preset.
-   Without 0053: switch **Game buttons wake the Pyra**, subtitle "Per-button control needs a newer kernel."
-4. Button: **More wake options**, subtitle "Choose individual buttons, lid wake" (without 0053: "Lid wake"),
-   action "Open". Opens Suspend & wake with the focus in the page.
+4. Button: **More wake options**, subtitle "Choose individual buttons, lid wake", action "Open". Opens Suspend & wake with the focus in the page.
 
 ### Suspend & wake
 
@@ -104,7 +102,7 @@ The app never rewrites a value the user didn't touch.
 2. The lid choice, as on Quick settings.
 3. Header **Wake sources**.
 4. The warnings, if any.
-5. With 0053: the preset choice, then four switches:
+5. The preset choice, then four switches:
 
    | Switch | Subtitle | Codes |
    |---|---|---|
@@ -114,7 +112,6 @@ The app never rewrites a value the user didn't touch.
    | Nub clicks | Left and right nub | 273, 272 |
 
    A group with only some of its codes on shows as off, subtitle "Partly on". Turning it on sets the whole group.
-   Without 0053: the single game-buttons switch instead.
 6. Locked: **Power button**, subtitle "Can't be turned off, so the Pyra can always be woken."
 7. Switch: **Opening the lid wakes the Pyra**.
 
@@ -354,7 +351,7 @@ One warning, in the warning banner, at the top of Quick settings and under "Wake
 
 | When | Text | Action |
 |---|---|---|
-| Lid action is Suspend and any shoulder button wakes (without 0053: game buttons wake) | "Shoulder buttons can wake the Pyra while the lid is closed, for example in a bag." (without 0053: "Game buttons ...") | "Turn off shoulder wake" (without 0053: "Turn off game-button wake") |
+| Lid action is Suspend and any shoulder button wakes | "Shoulder buttons can wake the Pyra while the lid is closed, for example in a bag." | "Turn off shoulder wake" |
 
 The Display & keyboard light page has its own warning, for MATE's keyboard dim boxes (described there).
 
@@ -383,8 +380,10 @@ Every change is written at once, so there is never an unsaved state to show.
 ### Wake settings that can't be read
 
 When sysfs can't be read (a device or file missing, a value that doesn't parse), the rows that need it stay in
-place, greyed out and off: on Quick settings the game-buttons switch (the without-0053 one, since 0053 can't be
-told), on Suspend & wake that switch and **Opening the lid wakes the Pyra**. The Power button row stays. The
+place, greyed out and off: on Quick settings the preset choice with nothing selected, on Suspend & wake that
+choice (no group switches) and **Opening the lid wakes the Pyra**. A kernel without 0053 counts as unreadable
+(every image has 0053; there is no all-or-nothing fallback): "the kernel lacks dragonbox-pyra patch 0053 (no
+wakeup_keys)". The Power button row stays. The
 reason, "Can't read the wake settings: <error> (<file>)", is the status line's idle text with a warning icon:
 it stays, and comes back after each timed message.
 

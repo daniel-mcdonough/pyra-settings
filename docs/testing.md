@@ -5,7 +5,7 @@
 - The helper runs against a fake sysfs tree (a temp directory with `keys`, `wakeup_keys`, `power/wakeup`), with
   the sysfs and config roots overridable only from the test suite, never from the command line `pkexec` runs.
   `wakeup_keys` comes from 0053, a kernel patch in the dragonbox-pyra image (see `kernel-interface.md`); the fake
-  tree can be built with or without it.
+  tree can be built with or without it (without: the helper refuses, the GUI shows the wake rows unreadable).
 - The fake tree is `tests/fakesysfs.py`: `build(root, with_0053=True)` in tests, or `python3 tests/fakesysfs.py
   <dir> [--no-0053]` to make one for the GUI. Tests point the helper at it with `mock.patch.object(helper,
   "SYSFS_ROOT", …)` and `CONFIG_PATH`, after loading `helper/pyra-settings-helper` with `SourceFileLoader` (no

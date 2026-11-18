@@ -250,25 +250,23 @@ class TestApply(HelperTest):
 class TestWithout0053(HelperTest):
     with_0053 = False
 
-    def test_apply_falls_back_to_power_wakeup(self):
+    """Every image has 0053; without it the helper changes nothing (no power/wakeup fallback)."""
+
+    def test_apply_changes_nothing(self):
         self.game_wakeup_off()
-        self.write_config("[wake]\ngame-buttons = 102\nlid = on\n")
-        self.assertEqual(self.run_helper("apply"), 0, self.stderr)
-        self.assertEqual(self.game("power/wakeup"), "enabled\n")
-        self.assertFalse(os.path.exists(os.path.join(self.sysfs, "pyra-game-buttons", "wakeup_keys")))
-        self.assertEqual(self.stderr.count("0053"), 1)
-        self.assertEqual(self.lid("power/wakeup"), "enabled\n")
-        self.assertFalse(os.path.exists(os.path.join(self.sysfs, "pyra-lid-wakeup", "wakeup_switches")))
+        for value in ("102", "none"):
+            self.write_config("[wake]\ngame-buttons = %s\nlid = off\n" % value)
+            before = self.snapshot()
+            self.assertEqual(self.run_helper("apply"), helper.EXIT_FAILED)
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual(self.stderr.count("patch 0053"), 2)
 
-    def test_apply_none_falls_back_to_disabled(self):
-        self.write_config("[wake]\ngame-buttons = none\n")
-        self.assertEqual(self.run_helper("apply"), 0, self.stderr)
-        self.assertEqual(self.game("power/wakeup"), "disabled\n")
-
-    def test_set_wake_keeps_codes_for_a_later_kernel(self):
-        self.assertEqual(self.run_helper("set-wake", "game-buttons", "102,103"), 0, self.stderr)
-        self.assertEqual(self.game("power/wakeup"), "enabled\n")
-        self.assertIn("game-buttons = 102,103", self.read_config())
+    def test_set_wake_changes_nothing(self):
+        for args in (("game-buttons", "102,103"), ("game-buttons", "none"), ("lid", "on"), ("lid", "off")):
+            before = self.snapshot()
+            self.assertEqual(self.run_helper("set-wake", *args), helper.EXIT_FAILED, args)
+            self.assertEqual(self.snapshot(), before)
+            self.assertFalse(os.path.exists(helper.CONFIG_PATH), args)
 
     def test_code_still_checked_against_keys(self):
         before = self.snapshot()
