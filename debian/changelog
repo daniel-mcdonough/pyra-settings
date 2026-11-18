@@ -1,3 +1,14 @@
+pyra-settings (0.14) trixie; urgency=medium
+
+  * Packaging: pyra-hacks and pyra-backlight are Recommends, not Depends, so
+    the package installs without them. The Volume wheel page says when its
+    daemon is missing; without pyra-backlight the Display page saves its
+    file but nothing reads it.
+  * Packaging: the description covers every page.
+  * Release builds on GitHub from a v* tag.
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Tue, 17 Nov 2026 12:00:00 +0000
+
 pyra-settings (0.13) trixie; urgency=medium
 
   * GUI: the Fine sliders are labelled Fine Pointer Speed, Fine Scroll Speed

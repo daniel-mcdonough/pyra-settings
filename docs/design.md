@@ -422,7 +422,10 @@ at 14 through idle while the keyboard light still went off.
      `debian/postrm` removes the config and directory on purge.
    - `dh_installsystemd` also starts (install) or restarts (upgrade) the unit, which reapplies the config. Harmless,
      and skipped in a chroot image build.
-   - Depends: `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, all on the image.
+   - Depends: `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, `alsa-utils`, `pulseaudio-utils`, all
+     on the image. Recommends: `pyra-hacks (>= 0.38+pyra3)` (Volume wheel page) and `pyra-backlight (>= 0.4)`
+     (Display page). Not Depends: both ship as GitHub release `.deb`s, not from an apt repo, so a hard dependency
+     would block installing the app on its own.
    - Lintian: one warning, no manpage for `/usr/bin/pyra-settings`.
    - Verified on the device (0.1): "Pyra Settings" is listed in MATE Control Center with
      `Categories=Settings;` and opens the stub window; `pkexec … set-wake power on` shows the mate-polkit prompt,

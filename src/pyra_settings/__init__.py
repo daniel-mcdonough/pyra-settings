@@ -1,1 +1,1 @@
-"""Pyra Settings GUI: the sleep and wake page."""
+"""Pyra Settings GUI: hardware settings only the Pyra has."""

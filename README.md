@@ -16,17 +16,18 @@ keyboard light level at login. It runs on the
 [Suspend investigation, with a reboot bonus](https://pyra-handheld.com/boards/threads/suspend-investigation-with-a-reboot-bonus.100153/)
 gave me a head start on the button wake work.
 
-- Some Pyra-specific settings existed in config files but don't have a convenient, centralized way.
+- Other Pyra-specific settings had no convenient, central place to change them. They lived in config files,
+  sysfs files that reset every boot, or values hard-coded in a systemd unit:
   - `/etc/pyrainput.cfg` for the nubs
   - `/etc/pyra_volumed.conf` for the wheel
--  sysfs files that reset every boot or a value hard-coded in a systemd unit.
 
 ## Why not just use MATE
 
 MATE's Control Center panels don't take plugin pages. Adding wake buttons to `mate-power-preferences` means patching
 the Debian package and maintaining a fork.
 
-This separate app shows up inside MATE Control Center under the `Categories=Settings`, so Pyra Settings sits in the Hardware group.
+This separate app's `.desktop` file has `Categories=Settings;HardwareSettings;`, so Pyra Settings shows up in MATE
+Control Center's Hardware group.
 It pulls in only the few MATE settings that interact with Pyra-only ones (the lid action, the critical battery
 action) and leaves everything else in MATE. Both apps write the same gsettings keys, so a change in one shows up
 in the other without any syncing. There's no graceful way around this toe-stepping.
@@ -36,33 +37,42 @@ in the other without any syncing. There's no graceful way around this toe-steppi
 - The GUI is Python 3 and GTK 3 through PyGObject, which are already on the image and follows the GTK theme.
 - The GUI runs as the user and root-only writes go through a `pkexec` helper with a fixed command set
   and hard-coded paths.
-- Privileged actions use polkit via `auth_admin_keep` so you type the password once and it holds for a few minutes. 
+- Privileged actions use polkit via `auth_admin_keep` so you type the password once and it holds for a few minutes.
 - Wake settings live in one INI file, `/etc/pyra-settings/pyra-settings.conf`, which a oneshot unit reapplies at
   boot.
 - The whole UI is drivable from the Pyra's controls: d-pad to move, A to activate, B to go back, X/Y to change page.
   Touch and the nubs work as well.
 
-
 ## Requirements
 
 - A Pyra running the dragonbox-pyra image (Debian trixie, MATE, X11, 1280x720).
-- `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, `alsa-utils`, `pulseaudio-utils`. Which should be on the image already.
-- `pyra-backlight` for the Display & keyboard light page.
+- `python3`, `python3-gi`, `gir1.2-gtk-3.0`, `pkexec`, `polkitd`, `alsa-utils`, `pulseaudio-utils`, which should be on the image already.
+- `pyra-backlight` 0.4 or later for the Display & keyboard light page. Without it the page saves its settings but
+  nothing applies them.
 - The pyra-hacks fork package, `0.38+pyra3` or later, for the Volume wheel page. Stock pyra-hacks 0.38's
   `pyra_volumed` doesn't read a config file at all.
 - For per-button wake control, a kernel with dragonbox-pyra patch 0053, which adds `wakeup_keys` and
   `wakeup_switches` to the gpio-keys devices.
 
-
 ## Install
+
+Download the `.deb` from [Releases](https://github.com/daniel-mcdonough/pyra-settings/releases) on the Pyra and
+install it:
+
+```sh
+sudo apt install ./pyra-settings_<version>_all.deb
+```
+
+pyra-backlight and the pyra-hacks fork are Recommends, not Depends: apt installs them along with it only if it can
+find them, so install their `.deb`s first if you want those pages.
+
+From a checkout, after a build:
 
 ```sh
 scripts/install-on-pyra.sh pyra@<address>
 ```
 
-This copies the newest `.deb` from `dist/` to the Pyra and runs `sudo apt-get install -y --reinstall` on it. s
-
-By hand, copy the `.deb` over and run `sudo apt-get install -y ./pyra-settings_<version>_all.deb`.
+This copies the newest `.deb` from `dist/` to the Pyra and runs `sudo apt-get install -y --reinstall` on it.
 
 To check the install:
 
@@ -88,7 +98,8 @@ dpkg-buildpackage -us -uc -b
 `build-deb.sh` also runs `desktop-file-validate` and lintian. If your local `debian:trixie` image happens to be
 `linux/arm/v7` it runs under qemu, which is slow but works.
 
-
+Pushing a `v<version>` tag that matches the top entry of `debian/changelog` runs the tests, builds the `.deb` on
+GitHub Actions and publishes it as a release (`.github/workflows/release.yml`).
 
 ## Configuration
 
@@ -165,7 +176,6 @@ in [`docs/ui.md`](docs/ui.md).
   battery just keeps draining it.
 - **Nub profiles override the Nubs page.** If something ran `pyrainputctl overload`, the page shows a notice.
 
-
 ## Troubleshooting
 
 **Volume wheel page shows a note instead of controls.** The page checks that `pyra_volumed.service` runs
@@ -213,8 +223,7 @@ cd src && GSETTINGS_SCHEMA_DIR=<schemas> GSETTINGS_BACKEND=keyfile XDG_CONFIG_HO
 The env vars for the Nubs, Volume wheel and Display pages, and how to run it headless under Xvfb, are in
 [`docs/testing.md`](docs/testing.md).
 
-
 ## License
 
-GPL-2.0-or-later. The volume wheel page's test sound, `data/sounds/volume-test.ogg`, is CC0. See
+GPL-2.0-or-later (`COPYING`). The volume wheel page's test sound, `data/sounds/volume-test.ogg`, is CC0. See
 `debian/copyright`.
