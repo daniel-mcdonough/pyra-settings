@@ -211,7 +211,7 @@ class ChoiceRow(Row):
     kind = "choice"
 
     def __init__(self, key, label, subtitle, options, current, on_change, focus_row, locked=False,
-                 sensitive=True):
+                 sensitive=True, stacked=False):
         super().__init__(key, label, subtitle, locked)
         self.values = [value for value, _ in options]
         self.current = current
@@ -227,7 +227,15 @@ class ChoiceRow(Row):
                 button.get_style_context().add_class("pyra-selected")
             button.connect("clicked", self._clicked, value, focus_row)
             buttons.pack_start(button, False, False, 0)
-        self.box.pack_end(buttons, False, False, 0)
+        if stacked:
+            # Too many buttons to sit beside the label at the Pyra's font: they go on a line of their own under
+            # it (docs/ui.md "Performance").
+            self.box.set_orientation(Gtk.Orientation.VERTICAL)
+            self.box.set_spacing(10)
+            buttons.set_halign(Gtk.Align.START)
+            self.box.pack_start(buttons, False, False, 0)
+        else:
+            self.box.pack_end(buttons, False, False, 0)
         self.box.set_sensitive(sensitive)
 
     def show_current(self, current, subtitle):
@@ -992,7 +1000,8 @@ class PyraSettingsWindow(Gtk.Window):
         return [
             HeaderRow("h-cpu", "CPU"),
             ChoiceRow("cpu-max", "Top CPU speed", sub, st.CPU_MAX_OPTIONS, current, self.set_ceiling,
-                      self._focus_row, locked=True, sensitive=self.ceiling is not None and not self.busy),
+                      self._focus_row, locked=True, sensitive=self.ceiling is not None and not self.busy,
+                      stacked=True),
             InfoRow("top-speed", "Top speed now", self.top_speed or "Unknown"),
         ]
 

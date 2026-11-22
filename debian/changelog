@@ -1,3 +1,11 @@
+pyra-settings (0.16) trixie; urgency=medium
+
+  * GUI: the Performance page's speed buttons go on a line under the label.
+    In 0.15 the row was wider than the Pyra's screen at its font, so the
+    window couldn't maximize.
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 22 Nov 2026 14:00:00 +0000
+
 pyra-settings (0.15) trixie; urgency=medium
 
   * GUI: Performance page: a top CPU speed (No limit, or one of the

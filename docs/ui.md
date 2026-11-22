@@ -77,6 +77,7 @@ v1 pages, in order:
 | Locked | Label and subtitle left; "Always on" with a lock icon, dim, right | No |
 | Button | Label and subtitle left; a button with the action text and a chevron right | Yes |
 | Warning | Warning-coloured banner (warning icon, text, action button), 8 px above, 12 px below. A `Gtk.InfoBar` of type warning fits | Yes |
+| Choice, stacked | As Choice, but the buttons go on their own line under the label and subtitle, left-aligned, 10 px below. For a row whose buttons don't fit beside the label at the Pyra's font. Used on Performance | Yes |
 | Slider | Label left; on the right a `Gtk.Scale` (no drawn value), ◀ and ▶ buttons (choice-button size) at its ends, and the number after them (16 px semibold). Used on Nubs | Yes |
 
 - A row is at least 64 px high, padding 10 px vertical, 18 px horizontal, 24 px gap between text and control.
@@ -358,19 +359,22 @@ holds one row, "This pyra-hacks has no CPU ceiling. pyra-hacks 0.38+pyra5 or lat
 wheel page's note. Checked once at start. Otherwise:
 
 1. Header **CPU**.
-2. Choice **Top CPU speed**, through the helper (lock icon), eleven buttons: No limit / 1400 / 1250 / 1125 / 1000 /
+2. Choice **Top CPU speed**, stacked (owner, 2026-11-22, after 0.15 didn't fit), through the helper (lock icon), eleven buttons: No limit / 1400 / 1250 / 1125 / 1000 /
    875 / 750 / 625 / 500 / 375 / 250 (MHz, no unit on the buttons). Subtitle "The thermal limit still goes lower
    when hot." A file value between steps shows no option selected, subtitle "Custom (N MHz). " before it.
 3. Info **Top speed now**: cpu0's `scaling_max_freq` in MHz ("1500 MHz"), what the thermal daemon has set, so a
    thermal cap below the choice shows. "Unknown" if it can't be read.
 
-**As built (PC, Xvfb at 1280x720; on the Pyra in Menta, NEXT for the owner).**
+**As built (0.16; checked on the Pyra at 1280x720 in Menta, 2026-11-22).**
 
 - After a save: "Saved. Applies within 2 seconds." for 3 s. The top speed is read again 2.5 s after the save
   (the daemon's next pass has run) and on opening the page; no polling.
 - The file is reread on opening the page. Unreadable (not missing): the choice stays, greyed out, nothing
   selected; the status line's idle text says "Can't read the CPU ceiling: <error> (<file>)".
-- The eleven buttons fit beside the label at the PC's theme: the label's subtitle wraps to two lines.
+- 0.15 had the buttons beside the label, as a plain choice row. Under Xvfb at the PC's font that fit, but on the
+  Pyra (Sans 12, 117 dpi) the buttons are 60-99 px each and the row needed 1009 px, so the page needed 1089 px,
+  the window 1403 px: wider than the screen, and it could not maximize. Stacked, the row needs 845 px, the page
+  925 px and the window 1239 px (measured on the Pyra with `get_preferred_width`); it maximizes.
 
 ## Warnings
 
