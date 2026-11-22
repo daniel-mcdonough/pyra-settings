@@ -43,6 +43,7 @@ CSS = b"""
 .pyra-option.pyra-selected { background-image: none; background-color: @theme_selected_bg_color;
                              color: @theme_selected_fg_color; }
 .pyra-scale { min-width: 320px; }
+.pyra-mono { font-family: monospace; padding: 14px 18px; }
 .pyra-warning { margin-top: 5px; margin-bottom: 9px; border: 3px solid transparent; }
 .pyra-warning.pyra-focus { border-color: @theme_selected_bg_color; }
 .pyra-hintbar { min-height: 46px; padding: 0 20px; }
@@ -59,11 +60,13 @@ PAGES = (
     ("performance", "Performance", "utilities-system-monitor-symbolic", "How fast the CPU may run."),
     ("nubs", "Nubs", "input-mouse-symbolic", "What the nubs do, and how fast they move."),
     ("volume", "Volume wheel", "audio-volume-high-symbolic", "How the wheel sets the speaker and headphone volume."),
+    ("about", "About", "help-about-symbolic", "This Pyra and its software, for a bug report."),
 )
 DISPLAY_PAGE = 3
 PERFORMANCE_PAGE = 4
 NUBS_PAGE = 5
 VOLUME_PAGE = 6
+ABOUT_PAGE = 7
 WHEEL_POLL_MS = 250
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
@@ -162,6 +165,16 @@ class NoteRow(Row):
         super().__init__(key, "")
         self.box.foreach(self.box.remove)
         self.box.pack_start(_label(text, "pyra-row-label", wrap=True), True, True, 0)
+
+
+class TextRow(Row):
+    """A block of program output as it is: monospace, wrapped, no row border (docs/ui.md "About")."""
+
+    def __init__(self, key, text):
+        self.key = key
+        self.widget = _label(text, "pyra-mono", wrap=True)
+        self.widget.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        self.box = None
 
 
 class LockedRow(Row):
@@ -554,6 +567,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.ceiling_ok = st.ceiling_supported()
         self.read_ceiling()
         self.top_speed = st.read_top_speed()
+        self.info, self.info_error = st.read_info()
         self.read_jack()
         self.rebuild()
         self._clear_status()
@@ -866,7 +880,7 @@ class PyraSettingsWindow(Gtk.Window):
         focused_key = focused.key if focused else None
         self.rows = {}
         builders = (self._quick_rows, self._wake_rows, self._battery_rows, self._display_rows,
-                    self._performance_rows, self._nub_rows, self._volume_rows)
+                    self._performance_rows, self._nub_rows, self._volume_rows, self._about_rows)
         for i, build in enumerate(builders):
             box = self.page_boxes[i]
             for child in box.get_children():
@@ -1004,6 +1018,20 @@ class PyraSettingsWindow(Gtk.Window):
                       stacked=True),
             InfoRow("top-speed", "Top speed now", self.top_speed or "Unknown"),
         ]
+
+    def _about_rows(self):
+        if self.info is None:
+            return [NoteRow("about-note", self.info_error or st.INFO_NOTE)]
+        return [ButtonRow("copy-info", "Copy for a bug report", "Puts the text below on the clipboard.", "Copy",
+                          self.copy_info),
+                TextRow("info", self.info)]
+
+    def copy_info(self):
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        clipboard.set_text(self.info, -1)
+        # Kept after the app closes, where a clipboard manager runs (MATE's settings daemon is one).
+        clipboard.store()
+        self.status("Copied", SAVED_MS)
 
     def _nub_rows(self):
         n = self.nubs
@@ -1361,6 +1389,12 @@ class PyraSettingsWindow(Gtk.Window):
                 self.rebuild()
                 if self.status_timer is None:
                     self._clear_status()
+        if self.page == ABOUT_PAGE:
+            # A package run or a boot-kernel change since the last read changes what it prints.
+            info = st.read_info()
+            if info != (self.info, self.info_error):
+                self.info, self.info_error = info
+                self.rebuild()
         if self.page == DISPLAY_PAGE and self.read_backlight():
             # The applet or an editor may have changed the file.
             self.rebuild()

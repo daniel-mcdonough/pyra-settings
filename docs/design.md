@@ -15,10 +15,11 @@ The UI layout is defined in `docs/ui.md`. This file says what the app does and w
   now are (per-button, 0053 only) are not yet run end to end on the Pyra.
 - Helper, config file and boot apply also tested on a fake sysfs.
 - v2 pages: Nubs (`nubs.md`), Volume wheel (`volume-wheel.md`), Display & keyboard light, Performance (CPU
-  ceiling, below). Package at 0.16 (0.15's Performance row fitted to the screen), released as `v0.16`
-  (GitHub release asset `pyra-settings_0.16_all.deb`, built by `.github/workflows/release.yml`).
+  ceiling, below). About (0.17): shows and copies dragonbox-pyra's `pyra-info` for bug reports (`ui.md`,
+  "About"). Package at 0.17, released as `v0.17` (GitHub release asset `pyra-settings_0.17_all.deb`, built by
+  `.github/workflows/release.yml`).
 - Image: dragonbox-pyra prep fix 26 installs the package with the pyra-hacks fork (0.38+pyra5) and sets fix 12
-  aside. It pins the `v0.16` release asset by SHA-256.
+  aside. It pins the `v0.17` release asset by SHA-256. Fix 31 installs `pyra-info`.
 - Kernel side done: 0053 is tested on `5.6.19-m4-kbdled-test`, not in `kernel-5.6.19-r2`. See
   `docs/kernel-interface.md`.
 

@@ -26,6 +26,8 @@ IIO_ROOT = os.environ.get("PYRA_SETTINGS_IIO", "/sys/bus/iio/devices")
 THERMAL_PATH = os.environ.get("PYRA_SETTINGS_THERMAL", "/etc/default/pyra-thermal")
 THERMAL_SCRIPT = os.environ.get("PYRA_SETTINGS_THERMAL_SCRIPT", "/usr/share/pyra/scripts/pyra-thermal.sh")
 CPUFREQ_PATH = os.environ.get("PYRA_SETTINGS_CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq")
+# dragonbox-pyra's bug-report tool (its prep fix 31). The About page shows and copies what it prints.
+INFO_BINARY = os.environ.get("PYRA_SETTINGS_INFO", "/usr/local/bin/pyra-info")
 GAME_DEV = "pyra-game-buttons"
 LID_DEV = "pyra-lid-wakeup"
 SW_LID = 0
@@ -1037,3 +1039,26 @@ def _last_line(stderr):
         if line.startswith(prefix):
             line = line[len(prefix):]
     return line
+
+
+# About page (docs/ui.md "About")
+
+INFO_NOTE = "pyra-info isn't installed. Cards prepared with dragonbox-pyra's fix 31 or later have it."
+INFO_TIMEOUT = 10        # seconds; it takes about 0.1 s on the Pyra
+
+
+def read_info(binary=None):
+    """(text, error): pyra-info's output, or why there is none. Not installed is (None, None)."""
+    binary = binary or INFO_BINARY
+    if not os.path.exists(binary):
+        return None, None
+    try:
+        proc = subprocess.run([binary], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, timeout=INFO_TIMEOUT, errors="replace")
+    except (OSError, subprocess.SubprocessError) as e:
+        return None, "Can't run pyra-info: %s" % e
+    text = proc.stdout.rstrip("\n")
+    if proc.returncode != 0 or not text:
+        detail = _last_line(proc.stderr) or "no output"
+        return None, "pyra-info failed (exit %d): %s" % (proc.returncode, detail)
+    return text, None

@@ -1,3 +1,11 @@
+pyra-settings (0.17) trixie; urgency=medium
+
+  * GUI: About page: what dragonbox-pyra's pyra-info prints (boards,
+    kernel, boot entry, OS, how the card was prepared, package versions),
+    with a button that copies it for a bug report.
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 22 Nov 2026 23:30:00 +0000
+
 pyra-settings (0.16) trixie; urgency=medium
 
   * GUI: the Performance page's speed buttons go on a line under the label.

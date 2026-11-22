@@ -16,6 +16,8 @@ changes are a design decision, to be agreed first.
   mockup's Display and Keyboard light sketches below.
 - Performance page agreed by the owner on 2026-11-22, the same way ("Performance" under "Pages"). It takes the
   sketch's name and place; the sketch's tuning switch and thermal rows are not part of it.
+- About page agreed by the owner on 2026-11-22: a copy button and pyra-info's text as it is ("About" under
+  "Pages"), chosen over one info row per field.
 
 ## Decisions on the mockup
 
@@ -59,6 +61,7 @@ v1 pages, in order:
 | Performance (v2) | `utilities-system-monitor-symbolic` | How fast the CPU may run. |
 | Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
 | Volume wheel (v2) | `audio-volume-high-symbolic` | How the wheel sets the speaker and headphone volume. |
+| About | `help-about-symbolic` | This Pyra and its software, for a bug report. |
 
 ## Page area
 
@@ -78,6 +81,7 @@ v1 pages, in order:
 | Button | Label and subtitle left; a button with the action text and a chevron right | Yes |
 | Warning | Warning-coloured banner (warning icon, text, action button), 8 px above, 12 px below. A `Gtk.InfoBar` of type warning fits | Yes |
 | Choice, stacked | As Choice, but the buttons go on their own line under the label and subtitle, left-aligned, 10 px below. For a row whose buttons don't fit beside the label at the Pyra's font. Used on Performance | Yes |
+| Text | Program output as it is: monospace, wrapped at any character, 14 px above and below, 18 px sides; no row border. Used on About | No |
 | Slider | Label left; on the right a `Gtk.Scale` (no drawn value), ◀ and ▶ buttons (choice-button size) at its ends, and the number after them (16 px semibold). Used on Nubs | Yes |
 
 - A row is at least 64 px high, padding 10 px vertical, 18 px horizontal, 24 px gap between text and control.
@@ -375,6 +379,25 @@ wheel page's note. Checked once at start. Otherwise:
   Pyra (Sans 12, 117 dpi) the buttons are 60-99 px each and the row needed 1009 px, so the page needed 1089 px,
   the window 1403 px: wider than the screen, and it could not maximize. Stacked, the row needs 845 px, the page
   925 px and the window 1239 px (measured on the Pyra with `get_preferred_width`); it maximizes.
+
+### About
+
+Agreed by the owner on 2026-11-22. Last in the sidebar. What it shows is dragonbox-pyra's `pyra-info`
+(installed by its prep fix 31): the boards, kernel, boot entry, OS, how the card was prepared and the pinned
+packages' versions. A bug report needs exactly that text, so the page shows it unchanged and copies it unchanged.
+
+1. Button **Copy for a bug report**, subtitle "Puts the text below on the clipboard.", action "Copy". Sets the
+   clipboard to the text (and asks a clipboard manager to keep it after the app closes); the status line says
+   "Copied" for 3 s.
+2. Text: `pyra-info`'s output. Long lines wrap; the copied text has no added line breaks.
+
+Without `/usr/local/bin/pyra-info` the page holds one row, "pyra-info isn't installed. Cards prepared with
+dragonbox-pyra's fix 31 or later have it." If it fails, the row says so instead ("pyra-info failed (exit N):
+<its last stderr line>"). It runs at start and again each time the page is opened (about 0.1 s on the Pyra), since
+a package run or a boot-kernel change alters what it prints. No lock icon: it needs no root.
+
+**As built (0.17; checked on the Pyra at 1280x720 in Menta, 2026-11-22).** The page box needs 398 px at least
+(the text wraps), so the window stays at Performance's 1239 px and maximizes.
 
 ## Warnings
 
