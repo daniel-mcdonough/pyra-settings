@@ -2,8 +2,9 @@
 commands and their results. The rules are docs/design.md "v1 settings", "Keyboard light" and "Screen dimming",
 docs/nubs.md and docs/volume-wheel.md; the presets, groups, warnings and options are docs/ui.md.
 
-The GUI reads sysfs, /etc/pyrainput.cfg and /etc/pyra_volumed.conf and never writes them. PYRA_SETTINGS_SYSFS,
-PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED and PYRA_SETTINGS_IIO point it at fake files on the PC, and
+The GUI reads sysfs, /etc/pyrainput.cfg, /etc/pyra_volumed.conf and /etc/default/pyra-thermal and never writes
+them. PYRA_SETTINGS_SYSFS, PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED, PYRA_SETTINGS_IIO,
+PYRA_SETTINGS_THERMAL, PYRA_SETTINGS_THERMAL_SCRIPT and PYRA_SETTINGS_CPUFREQ point it at fake files on the PC, and
 PYRA_SETTINGS_AUDIO at a stand-in for amixer, pactl and paplay; the helper never reads any of these variables.
 The one file the GUI writes itself is the user's ~/.config/pyra-backlight.conf (PYRA_SETTINGS_BACKLIGHT on the PC).
 
@@ -22,6 +23,9 @@ SYSFS_ROOT = os.environ.get("PYRA_SETTINGS_SYSFS", "/sys/devices/platform")
 PYRAINPUT_PATH = os.environ.get("PYRA_SETTINGS_PYRAINPUT", "/etc/pyrainput.cfg")
 VOLUMED_PATH = os.environ.get("PYRA_SETTINGS_VOLUMED", "/etc/pyra_volumed.conf")
 IIO_ROOT = os.environ.get("PYRA_SETTINGS_IIO", "/sys/bus/iio/devices")
+THERMAL_PATH = os.environ.get("PYRA_SETTINGS_THERMAL", "/etc/default/pyra-thermal")
+THERMAL_SCRIPT = os.environ.get("PYRA_SETTINGS_THERMAL_SCRIPT", "/usr/share/pyra/scripts/pyra-thermal.sh")
+CPUFREQ_PATH = os.environ.get("PYRA_SETTINGS_CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq")
 GAME_DEV = "pyra-game-buttons"
 LID_DEV = "pyra-lid-wakeup"
 SW_LID = 0
@@ -912,6 +916,96 @@ def lid_argv(on):
 
 SAVED = "Saved"
 SAVED_WAKE = "Saved. Takes effect at the next suspend."
+SAVED_CPU = "Saved. Applies within 2 seconds."
+
+
+# The Performance page (docs/ui.md "Performance"): the CPU ceiling in /etc/default/pyra-thermal, which the thermal
+# daemon of pyra-hacks 0.38+pyra5 or later reads (dragonbox-pyra docs/fixes.md, "A CPU ceiling of your own").
+CPU_TOP_MHZ = 1500
+CPU_MAX_NONE = "none"
+CPU_MAX_STEPS = (1400, 1250, 1125, 1000, 875, 750, 625, 500, 375, 250)
+CPU_MAX_OPTIONS = ((CPU_MAX_NONE, "No limit"),) + tuple((str(m), str(m)) for m in CPU_MAX_STEPS)
+# The fork's reader; the vendor's 0.38 script has none, and an older fork none either.
+CEILING_FUNCTION = "pyraReadCeiling"
+CEILING_NOTE = "This pyra-hacks has no CPU ceiling. pyra-hacks 0.38+pyra5 or later has one."
+CEILING_SUB = "The thermal limit still goes lower when hot."
+_CEILING_VALUE_RE = re.compile(r"[1-9][0-9]{0,3}", re.ASCII)
+
+
+def ceiling_supported(script=None):
+    """The installed thermal script reads a ceiling. Unreadable or missing counts as no."""
+    try:
+        with open(script or THERMAL_SCRIPT, errors="replace") as f:
+            return CEILING_FUNCTION in f.read()
+    except OSError:
+        return False
+
+
+def _shell_fields(line, count):
+    """The first count fields of `IFS='= <tab>' read`: blanks around one "=" make one break, so "a = b" and "a=b"
+    split alike, and "a==b" has an empty second field. Missing fields are ""."""
+    rest = line.strip(" \t")
+    fields = []
+    while len(fields) < count:
+        m = re.match(r"([^= \t]*)(?:[ \t]*=[ \t]*|[ \t]+|$)", rest)
+        fields.append(m.group(1))
+        rest = rest[m.end():]
+    return fields
+
+
+def parse_ceiling(text):
+    """The top speed in MHz the daemon takes from the file's text, as its pyraReadCeiling does: each CPU_MAX_MHZ
+    line, one quote stripped from each end of the value, a number 1-9999 without a leading zero, the lowest one;
+    never above the top."""
+    top = CPU_TOP_MHZ
+    for line in text.split("\n"):
+        key, value = _shell_fields(line, 2)
+        if key != "CPU_MAX_MHZ":
+            continue
+        if value[:1] in ("\"", "'"):
+            value = value[1:]
+        if value[-1:] in ("\"", "'"):
+            value = value[:-1]
+        if _CEILING_VALUE_RE.fullmatch(value):
+            top = min(top, int(value))
+    return top
+
+
+def read_ceiling(path=None):
+    """The ceiling in MHz; no file is the top. Other errors raise OSError."""
+    try:
+        with open(path or THERMAL_PATH, errors="replace", newline="") as f:
+            return parse_ceiling(f.read())
+    except FileNotFoundError:
+        return CPU_TOP_MHZ
+
+
+def ceiling_choice(mhz):
+    """The option for a ceiling: "none" at the top, a step's own, None (Custom) between steps."""
+    if mhz >= CPU_TOP_MHZ:
+        return CPU_MAX_NONE
+    return str(mhz) if mhz in CPU_MAX_STEPS else None
+
+
+def ceiling_mhz(option):
+    return CPU_TOP_MHZ if option == CPU_MAX_NONE else int(option)
+
+
+def ceiling_error_text(error):
+    return "Can't read the CPU ceiling: %s" % _error_detail(error)
+
+
+def cpu_max_argv(option):
+    return helper_command() + ["set-cpu-max", option]
+
+
+def read_top_speed(path=None):
+    """scaling_max_freq as "1500 MHz", or "Unknown"."""
+    try:
+        with open(path or CPUFREQ_PATH) as f:
+            return "%d MHz" % (int(f.read().strip()) // 1000)
+    except (OSError, ValueError):
+        return "Unknown"
 
 
 def helper_message(code, stderr="", saved=SAVED_WAKE):

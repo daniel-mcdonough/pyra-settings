@@ -41,6 +41,11 @@
   rows, patch `state.idle_dim_installed` to return True, as for the Volume wheel check. `idle-dim-ac=true` under `[org/mate/power-manager]` in the keyfile
   shows the MATE warning. The reload fails on a PC (no pyra-idle-dim unit), so each save ends with the
   didn't-reload line; the file is written anyway. A file without a section header shows the unreadable state.
+- Performance page on the PC: `PYRA_SETTINGS_THERMAL=<file>` (what the GUI reads) and `FAKEHELPER_THERMAL=<same
+  file>` (where the fake helper's `set-cpu-max` writes), `PYRA_SETTINGS_THERMAL_SCRIPT=<file>` holding the word
+  `pyraReadCeiling` (or the page shows its note), and `PYRA_SETTINGS_CPUFREQ=<file>` with a kHz value for "Top
+  speed now"; edit it to see the re-read 2.5 s after a save or on reopening the page. `CPU_MAX_MHZ=1300` in the
+  file shows "Custom".
 - Killing the GUI from a script: `pkill -f <pattern>` also matches the shell running the command when the
   pattern is in its text, and kills it (exit 144). Kill by PID, or use a pattern the command line doesn't contain.
 - Headless: `Xvfb :91 -screen 0 1280x720x24`, `DISPLAY=:91 GDK_BACKEND=x11` (on a Wayland desktop GTK

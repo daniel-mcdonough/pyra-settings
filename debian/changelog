@@ -1,3 +1,16 @@
+pyra-settings (0.15) trixie; urgency=medium
+
+  * GUI: Performance page: a top CPU speed (No limit, or one of the
+    kernel's steps from 1400 down to 250 MHz) and the top speed the thermal
+    daemon has set now. Needs pyra-hacks 0.38+pyra5 or later, whose thermal
+    daemon reads the ceiling within 2 s; with an older one the page says so.
+  * Helper: set-cpu-max writes CPU_MAX_MHZ to /etc/default/pyra-thermal, or
+    deletes the file for no limit. Purge removes the file only if the helper
+    wrote it.
+  * Packaging: Recommends pyra-hacks (>= 0.38+pyra5).
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Sun, 22 Nov 2026 12:00:00 +0000
+
 pyra-settings (0.14) trixie; urgency=medium
 
   * Packaging: pyra-hacks and pyra-backlight are Recommends, not Depends, so

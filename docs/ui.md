@@ -14,6 +14,8 @@ changes are a design decision, to be agreed first.
   Sound page's button to MATE's panel.
 - Display & keyboard light page agreed, the same way ("Display & keyboard light" under "Pages"). It replaces the
   mockup's Display and Keyboard light sketches below.
+- Performance page agreed by the owner on 2026-11-22, the same way ("Performance" under "Pages"). It takes the
+  sketch's name and place; the sketch's tuning switch and thermal rows are not part of it.
 
 ## Decisions on the mockup
 
@@ -54,6 +56,7 @@ v1 pages, in order:
 | Suspend & wake | `bedtime` | When the Pyra sleeps, and what wakes it up. |
 | Battery | `battery_5_bar` | What happens when the battery runs low. |
 | Display & keyboard light (v2) | `display-brightness-symbolic` (working) | How far the screen dims when idle, and the keyboard light at login. (working) |
+| Performance (v2) | `utilities-system-monitor-symbolic` | How fast the CPU may run. |
 | Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
 | Volume wheel (v2) | `audio-volume-high-symbolic` | How the wheel sets the speaker and headphone volume. |
 
@@ -344,6 +347,30 @@ ticked." Choices left open above:
   false.
 - After "Turn off" the banner goes, and the focus moves to the first row (the dim depth).
 - The file is reread on opening the page (the applet or an editor may have changed it).
+
+### Performance
+
+Agreed by the owner on 2026-11-22, drafted from the row kinds above. What the setting does: `design.md`, "CPU
+ceiling". In the sidebar after Display & keyboard light.
+
+Without a thermal daemon that reads the ceiling (no `pyraReadCeiling` in the installed `pyra-thermal.sh`) the page
+holds one row, "This pyra-hacks has no CPU ceiling. pyra-hacks 0.38+pyra5 or later has one.", like the Volume
+wheel page's note. Checked once at start. Otherwise:
+
+1. Header **CPU**.
+2. Choice **Top CPU speed**, through the helper (lock icon), eleven buttons: No limit / 1400 / 1250 / 1125 / 1000 /
+   875 / 750 / 625 / 500 / 375 / 250 (MHz, no unit on the buttons). Subtitle "The thermal limit still goes lower
+   when hot." A file value between steps shows no option selected, subtitle "Custom (N MHz). " before it.
+3. Info **Top speed now**: cpu0's `scaling_max_freq` in MHz ("1500 MHz"), what the thermal daemon has set, so a
+   thermal cap below the choice shows. "Unknown" if it can't be read.
+
+**As built (PC, Xvfb at 1280x720; on the Pyra in Menta, NEXT for the owner).**
+
+- After a save: "Saved. Applies within 2 seconds." for 3 s. The top speed is read again 2.5 s after the save
+  (the daemon's next pass has run) and on opening the page; no polling.
+- The file is reread on opening the page. Unreadable (not missing): the choice stays, greyed out, nothing
+  selected; the status line's idle text says "Can't read the CPU ceiling: <error> (<file>)".
+- The eleven buttons fit beside the label at the PC's theme: the label's subtitle wraps to two lines.
 
 ## Warnings
 

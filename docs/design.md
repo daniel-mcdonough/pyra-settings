@@ -2,7 +2,7 @@
 
 Pyra Settings is a small GTK 3 app for the settings only the Pyra has. Version 1 covers suspend and wake: which
 buttons wake the machine, whether the lid wakes it, what the lid does and the critical-battery action. Version 2
-adds the nubs, the volume wheel, the screen dim depth and the keyboard light ("v2: agreed").
+adds the nubs, the volume wheel, the screen dim depth, the keyboard light and a CPU ceiling ("v2: agreed").
 Per-button wake needs [dragonbox-pyra](https://github.com/daniel-mcdonough/dragonbox-pyra) `patches/0053`, in
 the next Pyra image's kernel.
 
@@ -14,10 +14,11 @@ The UI layout is defined in `docs/ui.md`. This file says what the app does and w
   on a kernel without 0053, through the all-or-nothing fallback that 0.14 removed, so the wake rows as they
   now are (per-button, 0053 only) are not yet run end to end on the Pyra.
 - Helper, config file and boot apply also tested on a fake sysfs.
-- v2 pages: Nubs (`nubs.md`), Volume wheel (`volume-wheel.md`), Display & keyboard light. Package at 0.14, released as `v0.14`
-  (GitHub release asset `pyra-settings_0.14_all.deb`, built by `.github/workflows/release.yml`).
-- Image: dragonbox-pyra prep fix 26 installs the package with the pyra-hacks fork 0.38+pyra3 and sets fix 12
-  aside. It pins no pyra-settings release yet, so a default prep run leaves it out (NEXT 1.7).
+- v2 pages: Nubs (`nubs.md`), Volume wheel (`volume-wheel.md`), Display & keyboard light, Performance (CPU
+  ceiling, below). Package at 0.15 (Performance page); 0.14 is released as `v0.14` (GitHub release asset
+  `pyra-settings_0.14_all.deb`, built by `.github/workflows/release.yml`).
+- Image: dragonbox-pyra prep fix 26 installs the package with the pyra-hacks fork (0.38+pyra5) and sets fix 12
+  aside. It pins the `v0.14` release asset by SHA-256; moving it to 0.15 waits for the `v0.15` release.
 - Kernel side done: 0053 is tested on `5.6.19-m4-kbdled-test`, not in `kernel-5.6.19-r2`. See
   `docs/kernel-interface.md`.
 
@@ -154,6 +155,7 @@ MATE covers.
 | Nubs: what each axis does, clicks, sensitivity, deadzones | `/etc/pyrainput.cfg`, root daemon funkeymonkey-pyrainput, `systemctl reload pyrainput` | Done: helper `set-nubs` (`nubs.md`); profiles out of scope. GUI after the layout |
 | Screen dimming: depth and delay | Depth `[screen] dim` in the per-user config file (pyra-backlight 0.4); delay `org.mate.session idle-delay`, shown, set in MATE (below) | Decided and built; the page's layout in `ui.md` |
 | Keyboard light: level at login, off when idle | `pyra::kbd_backlight` LED; pyra-idle-dim with a per-user config file (below) | Decided; pyra-backlight change, then the page's layout in `ui.md` |
+| CPU ceiling: a top speed the thermal daemon keeps | `/etc/default/pyra-thermal` `CPU_MAX_MHZ`, read by pyra-hacks 0.38+pyra5's thermal daemon every pass; helper `set-cpu-max` (below) | Done in 0.15: helper, Performance page (`ui.md` "Performance") |
 | Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`, `hsrange`), root daemon `pyra_volumed`, helper `set-volume` (`docs/volume-wheel.md`) | Helper done; a daemon that reads the file (pyra-hacks fork 0.38+pyra2 or later, not fix 12's), check on the Pyra, page built (`ui.md` "Volume wheel"), the fork's flutter fixed in 0.38+pyra3; page on the Pyra next |
 
 The keyboard light and screen dim rows above are superseded by this table.
@@ -273,6 +275,31 @@ pyra-idle-dim 0.2 dims only the screen; 0.3 handles the light (below). Sources: 
   ends it with no lock and no dialog, and light and screen come back at once.
 - A change made while the light is off for idle is kept at wake (checked with a write of 10 during idle). An Fn
   key can't make one: the key press wakes the session first.
+
+### CPU ceiling
+
+**Mechanism.** The thermal daemon writes `scaling_max_freq` every 2 s, so a limit set in sysfs or with
+`cpupower` is gone within one pass. pyra-hacks 0.38+pyra5 reads `CPU_MAX_MHZ` from `/etc/default/pyra-thermal` at
+the top of each pass, takes the lowest valid line, never goes above it, and still caps below it when hot. No file
+means no ceiling. Its reader and the measured response: dragonbox-pyra `docs/fixes.md`, "A CPU ceiling of your
+own".
+
+**Decisions.**
+
+- **Choices.** "No limit" and kernel patch 0007's steps below the 1500 MHz top: 1400, 1250, 1125, 1000, 875, 750,
+  625, 500, 375, 250. 1500 itself is "No limit": the daemon never goes above it. "No limit" deletes the file.
+- **The helper owns the file.** The package doesn't ship it (no conffile, so no dpkg prompt). `set-cpu-max <MHz>`
+  writes it whole, header line and one `CPU_MAX_MHZ=` line, 0644; a hand-written comment doesn't survive. Writing
+  it whole means no older, lower line can win. Values other than the ten steps are refused.
+- **No boot apply.** The file persists and the daemon reads it from its first pass.
+- **Reading it.** The GUI parses the file as the daemon's `pyraReadCeiling` does (`state.parse_ceiling`; each test
+  case was run against the real function under dash on the Pyra). A value between steps (written by hand) shows
+  as "Custom (N MHz)"; the kernel rounds it down to a step.
+- **Check.** The page shows controls only if the installed `/usr/share/pyra/scripts/pyra-thermal.sh` contains
+  `pyraReadCeiling`. Not by package version: dragonbox-pyra fixes 6 and 7 edit the vendor's script in place.
+- **Purge.** `postrm purge` deletes the file only if its first line is the helper's header, so a ceiling written by
+  hand stays. Plain removal keeps it: the daemon still honours it, and `scaling_max_freq` shows it.
+- **Not exposed:** the ladder's rungs (see "Not exposed").
 
 ### Screen dimming
 

@@ -5,6 +5,11 @@ set -e
 if [ "$1" = "purge" ]; then
 	rm -f /etc/pyra-settings/pyra-settings.conf /etc/pyra-settings/pyra-settings.conf.new
 	rmdir --ignore-fail-on-non-empty /etc/pyra-settings 2>/dev/null || true
+	# The CPU ceiling, only if the helper wrote it (its first line); one written by hand stays.
+	if [ "$(head -n 1 /etc/default/pyra-thermal 2>/dev/null)" = "# Written by pyra-settings. No file means no CPU ceiling." ]; then
+		rm -f /etc/default/pyra-thermal
+	fi
+	rm -f /etc/default/pyra-thermal.new
 fi
 
 #DEBHELPER#

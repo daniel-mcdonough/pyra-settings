@@ -8,18 +8,20 @@ pyra-settings-apply.service at boot. Commands:
     set-wake lid on|off
     set-nubs <key>=<value>...            edit the nub keys of /etc/pyrainput.cfg and reload pyrainput
     set-volume <key>=<value>...          edit cal, range, hsrange in /etc/pyra_volumed.conf and restart pyra_volumed
+    set-cpu-max <MHz>|none               write the CPU ceiling to /etc/default/pyra-thermal, or delete the file
     apply                                reapply the config file to sysfs
 
 set-wake writes sysfs first and the config file only if every sysfs write succeeded, so a write the kernel
 refuses changes nothing. apply never writes the config. set-nubs checks every pair before it writes anything;
 pyrainput's own file needs no boot apply, the daemon reads it at start (docs/nubs.md). set-volume is the same for
-pyra_volumed's file (docs/volume-wheel.md).
+pyra_volumed's file (docs/volume-wheel.md). set-cpu-max takes one of kernel patch 0007's steps; the thermal
+daemon reads the file every pass, so it needs no restart and no boot apply.
 
 Exit codes: 0 done, 1 a write or read failed, 2 the request was refused (bad arguments, unknown device, a code
 the device doesn't have, the power button). 126 and 127 stay free for pkexec's own "dismissed" and "not
 authorized".
 
-The sysfs, config, pyrainput and pyra_volumed locations are the module constants below. Nothing from the caller (argument, environment)
+The sysfs, config, pyrainput, pyra_volumed and pyra-thermal locations are the module constants below. Nothing from the caller (argument, environment)
 can change them; only the test suite overrides them, by importing this file.
 """
 
@@ -39,6 +41,10 @@ VOLUMED_PATH = "/etc/pyra_volumed.conf"
 # pyra_volumed reads its file only at start and has no reload. try-restart leaves a stopped daemon stopped; it
 # reads the file when it next starts (docs/volume-wheel.md).
 VOLUMED_RESTART = ["/usr/bin/systemctl", "try-restart", "pyra_volumed.service"]
+# The CPU ceiling (dragonbox-pyra docs/fixes.md, "A CPU ceiling of your own"): pyra-hacks 0.38+pyra5's thermal
+# daemon reads CPU_MAX_MHZ from this file on every pass, about every 2 s. No file is no ceiling. The package doesn't
+# ship it, so the helper owns the whole file: it writes it whole, and a hand-written comment doesn't survive.
+THERMAL_PATH = "/etc/default/pyra-thermal"
 
 # Device names the caller may use, mapped to their sysfs directory under SYSFS_ROOT.
 GAME_BUTTONS = "game-buttons"
@@ -503,6 +509,33 @@ def cmd_set_volume(args):
                      % (VOLUMED_PATH, result.stderr.decode(errors="replace").strip()))
 
 
+# Kernel patch 0007's steps below the 1500 MHz top, in MHz. The top is "none": the daemon never goes above it anyway.
+CPU_MAX_STEPS = (250, 375, 500, 625, 750, 875, 1000, 1125, 1250, 1400)
+CPU_MAX_NONE = "none"
+# The file's first line. debian/postrm deletes the file on purge only if it starts with this, so a ceiling written
+# by hand stays.
+THERMAL_HEADER = "# Written by pyra-settings. No file means no CPU ceiling."
+
+
+def cmd_set_cpu_max(args):
+    usage = "usage: set-cpu-max <MHz>|none, MHz one of " + ",".join(map(str, CPU_MAX_STEPS))
+    if len(args) != 1:
+        raise Refused(usage)
+    value = args[0]
+    if value == CPU_MAX_NONE:
+        try:
+            os.unlink(THERMAL_PATH)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            raise Failed("cannot remove %s: %s" % (THERMAL_PATH, e.strerror))
+        return
+    if not re.fullmatch(r"[1-9][0-9]{2,3}", value, re.ASCII) or int(value) not in CPU_MAX_STEPS:
+        raise Refused("not a CPU step: %r (%s)" % (value, usage))
+    # World-readable, as the rest of /etc/default: the GUI reads it to show the choice.
+    write_file_atomic(THERMAL_PATH, "%s\nCPU_MAX_MHZ=%s\n" % (THERMAL_HEADER, value), 0o644)
+
+
 def cmd_apply(args):
     """Apply every setting in the config. A missing key leaves the kernel default; one bad setting doesn't stop
     the others."""
@@ -532,6 +565,7 @@ COMMANDS = {
     "set-wake": cmd_set_wake,
     "set-nubs": cmd_set_nubs,
     "set-volume": cmd_set_volume,
+    "set-cpu-max": cmd_set_cpu_max,
     "apply": cmd_apply,
 }
 
@@ -539,7 +573,7 @@ COMMANDS = {
 def main(argv):
     if not argv or argv[0] not in COMMANDS:
         log("refused: usage: pyra-settings-helper set-wake <device> <value> | set-nubs <key>=<value>... | "
-            "set-volume <key>=<value>... | apply")
+            "set-volume <key>=<value>... | set-cpu-max <MHz>|none | apply")
         return EXIT_REFUSED
     try:
         return COMMANDS[argv[0]](argv[1:]) or EXIT_OK

@@ -1,8 +1,8 @@
 # Pyra Settings
 
 A small GTK 3 settings app for the DragonBox Pyra, covering which buttons wake it from suspend, what
-the nubs do, how the volume wheel maps to speaker and headphone volume, how far the screen dims when idle, and the
-keyboard light level at login. It runs on the
+the nubs do, how the volume wheel maps to speaker and headphone volume, how far the screen dims when idle, the
+keyboard light level at login, and how fast the CPU may run. It runs on the
 [dragonbox-pyra](https://github.com/daniel-mcdonough/dragonbox-pyra) image (Debian trixie, MATE, X11) and ships as an
 `Architecture: all` `.deb`.
 
@@ -20,6 +20,7 @@ gave me a head start on the button wake work.
   sysfs files that reset every boot, or values hard-coded in a systemd unit:
   - `/etc/pyrainput.cfg` for the nubs
   - `/etc/pyra_volumed.conf` for the wheel
+  - `/etc/default/pyra-thermal` for a top CPU speed the thermal daemon keeps
 
 ## Why not just use MATE
 
@@ -50,7 +51,8 @@ in the other without any syncing. There's no graceful way around this toe-steppi
 - `pyra-backlight` 0.4 or later for the Display & keyboard light page. Without it the page says it isn't installed
   and shows no settings.
 - The pyra-hacks fork package, `0.38+pyra3` or later, for the Volume wheel page. Stock pyra-hacks 0.38's
-  `pyra_volumed` doesn't read a config file at all.
+  `pyra_volumed` doesn't read a config file at all. The Performance page needs `0.38+pyra5` or later, whose
+  thermal daemon reads the CPU ceiling; with an older one the page says so.
 - A kernel with dragonbox-pyra patch 0053, which adds `wakeup_keys` and `wakeup_switches` to the gpio-keys
   devices. Every dragonbox-pyra image has it. Without it the wake settings show as unreadable.
 
@@ -110,6 +112,7 @@ You shouldn't need to edit anything by hand, but these are the files involved:
 | `/etc/pyra-settings/pyra-settings.conf` | root | The helper. Reapplied at boot by `pyra-settings-apply.service` |
 | `/etc/pyrainput.cfg` | root | The helper (`set-nubs`), then `systemctl reload pyrainput` |
 | `/etc/pyra_volumed.conf` | root | The helper (`set-volume`), then a restart of `pyra_volumed` |
+| `/etc/default/pyra-thermal` | root | The helper (`set-cpu-max`); the thermal daemon reads it within 2 s. Deleted for "No limit" |
 | `~/.config/pyra-backlight.conf` | user | The GUI, then `systemctl --user reload pyra-idle-dim` |
 | `org.mate.power-manager` keys | user | The GUI, through gsettings |
 
@@ -145,8 +148,8 @@ A missing key leaves the kernel default alone, so an empty file does nothing. "N
 
 - The GUI reads the sysfs wake files directly (they're world-readable) to show live state, and writes gsettings
   for per-user settings.
-- The helper (`/usr/libexec/pyra-settings/pyra-settings-helper`) accepts `set-wake`, `set-nubs`, `set-volume` and
-  `apply`. It maps known device names to hard-coded sysfs paths, checks every button code against that device's
+- The helper (`/usr/libexec/pyra-settings/pyra-settings-helper`) accepts `set-wake`, `set-nubs`, `set-volume`,
+  `set-cpu-max` and `apply`. It maps known device names to hard-coded sysfs paths, checks every button code against that device's
   `keys` file, writes sysfs first and then replaces the config atomically. If the sysfs write fails, the config is
   left alone.
 - The helper runs with `python3 -I` (isolated mode) on top of pkexec's own environment scrub. Its paths are module
@@ -181,6 +184,11 @@ dragonbox-pyra image's fix 12 installs its own build with hard-coded values, via
 ignores `/etc/pyra_volumed.conf`. Install the pyra-hacks fork package and undo fix 12
 (`device/pyra-volumed/install.sh --undo` in the dragonbox-pyra checkout). Details in
 [`docs/volume-wheel.md`](docs/volume-wheel.md).
+
+**Performance page shows a note instead of controls.** The page looks for the ceiling reader
+(`pyraReadCeiling`) in `/usr/share/pyra/scripts/pyra-thermal.sh`, which pyra-hacks `0.38+pyra5` and later have.
+The vendor's 0.38, and a card prepared with dragonbox-pyra's `--no-settings`, don't. Install the fork package and
+restart the app.
 
 **Lid action and battery rows are greyed out with "MATE power settings not found".** The `org.mate.power-manager`
 schema isn't installed. On the image it always is; on a PC it usually isn't (see "Running on a PC").

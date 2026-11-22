@@ -56,12 +56,14 @@ PAGES = (
     ("battery", "Battery", "battery-good-symbolic", "What happens when the battery runs low."),
     ("display", "Display & keyboard light", "display-brightness-symbolic",
      "How far the screen dims when idle, and the keyboard light at login."),
+    ("performance", "Performance", "utilities-system-monitor-symbolic", "How fast the CPU may run."),
     ("nubs", "Nubs", "input-mouse-symbolic", "What the nubs do, and how fast they move."),
     ("volume", "Volume wheel", "audio-volume-high-symbolic", "How the wheel sets the speaker and headphone volume."),
 )
 DISPLAY_PAGE = 3
-NUBS_PAGE = 4
-VOLUME_PAGE = 5
+PERFORMANCE_PAGE = 4
+NUBS_PAGE = 5
+VOLUME_PAGE = 6
 WHEEL_POLL_MS = 250
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
@@ -74,6 +76,7 @@ SAVED_MS = 3000
 SAVED_WAKE_MS = 4000
 FINE_REST_MS = 1000      # a Fine slider writes once its value has rested this long (docs/ui.md "Fine sliders")
 ERROR_MS = 8000
+TOP_SPEED_MS = 2500      # after a ceiling save, the daemon's next pass has run (about every 2 s)
 
 K = Gdk
 KEYS_A = {K.KEY_Home, K.KEY_Return, K.KEY_KP_Enter, K.KEY_space}
@@ -459,6 +462,9 @@ class PyraSettingsWindow(Gtk.Window):
         self.nub_error = None
         self.volume = None
         self.volume_error = None
+        self.ceiling = None         # MHz, CPU_TOP_MHZ for no ceiling
+        self.ceiling_error = None
+        self.top_speed = None       # scaling_max_freq as text, read when the Performance page opens
         self.cal = None             # st.Calibration while the guided calibration runs
         self.cal_samples = None     # readings for the current mark while it is being recorded
         self.wheel_raw = None
@@ -536,6 +542,10 @@ class PyraSettingsWindow(Gtk.Window):
         # Once: a restart of the daemon doesn't change the result (docs/volume-wheel.md "The check").
         self.volumed = st.volumed_installed()
         self.read_volume()
+        # Once, like the volume wheel check: a pyra-hacks upgrade needs a restart of the app.
+        self.ceiling_ok = st.ceiling_supported()
+        self.read_ceiling()
+        self.top_speed = st.read_top_speed()
         self.read_jack()
         self.rebuild()
         self._clear_status()
@@ -591,6 +601,16 @@ class PyraSettingsWindow(Gtk.Window):
         except OSError as e:
             self.volume, self.volume_error = None, st.volumed_error_text(e)
         return old != (self.volume.values if self.volume else None)
+
+    def read_ceiling(self):
+        """Read /etc/default/pyra-thermal; True if what the page shows changed."""
+        old = self.ceiling
+        try:
+            self.ceiling = st.read_ceiling()
+            self.ceiling_error = None
+        except OSError as e:
+            self.ceiling, self.ceiling_error = None, st.ceiling_error_text(e)
+        return old != self.ceiling
 
     def read_backlight(self):
         """Read ~/.config/pyra-backlight.conf; True if what the page shows changed."""
@@ -648,6 +668,16 @@ class PyraSettingsWindow(Gtk.Window):
         """set-volume; the helper restarts pyra_volumed, so it applies at once."""
         self.run_helper(st.volume_argv(changes), saved=st.SAVED, volume=self.volume.with_values(changes))
 
+    def set_ceiling(self, option):
+        """set-cpu-max; the thermal daemon reads the file within 2 s, and the top speed is read again after."""
+        self.run_helper(st.cpu_max_argv(option), saved=st.SAVED_CPU, ceiling=st.ceiling_mhz(option))
+
+    def _reread_top_speed(self):
+        top_speed, self.top_speed = self.top_speed, st.read_top_speed()
+        if top_speed != self.top_speed:
+            self.rebuild()
+        return False
+
     def set_backlight(self, key, value):
         """Write one key of the user's pyra-backlight.conf, then reload pyra-idle-dim (docs/ui.md "Display &
         keyboard light"). The file is written either way; a failed reload only says so."""
@@ -691,7 +721,7 @@ class PyraSettingsWindow(Gtk.Window):
                 self.settings.set_boolean(key, False)
         self.status(st.SAVED, SAVED_MS)
 
-    def run_helper(self, argv, saved=st.SAVED_WAKE, wake=None, nubs=None, volume=None):
+    def run_helper(self, argv, saved=st.SAVED_WAKE, wake=None, nubs=None, volume=None, ceiling=None):
         """Run the helper without blocking the window while the polkit agent asks for the password. The
         controls show the requested value (wake or nubs) until it finishes, then sysfs and the file again."""
         if self.busy:
@@ -706,6 +736,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.wake = wake or self.wake
         self.nubs = nubs or self.nubs
         self.volume = volume or self.volume
+        self.ceiling = ceiling or self.ceiling
         self.rebuild()
         proc.communicate_utf8_async(None, None, self._helper_done)
 
@@ -720,7 +751,10 @@ class PyraSettingsWindow(Gtk.Window):
         self.read_wake()
         self.read_nubs()
         self.read_volume()
+        self.read_ceiling()
         self.rebuild()
+        if ok and self.saved == st.SAVED_CPU:
+            GLib.timeout_add(TOP_SPEED_MS, self._reread_top_speed)
         ms = (SAVED_WAKE_MS if self.saved == st.SAVED_WAKE else SAVED_MS) if ok else ERROR_MS
         self.status(message, ms, error=not ok)
         if self.fine and self.fine_timer is None and self.fine_held is None:
@@ -823,8 +857,8 @@ class PyraSettingsWindow(Gtk.Window):
         focused = self._focused_row()
         focused_key = focused.key if focused else None
         self.rows = {}
-        builders = (self._quick_rows, self._wake_rows, self._battery_rows, self._display_rows, self._nub_rows,
-                    self._volume_rows)
+        builders = (self._quick_rows, self._wake_rows, self._battery_rows, self._display_rows,
+                    self._performance_rows, self._nub_rows, self._volume_rows)
         for i, build in enumerate(builders):
             box = self.page_boxes[i]
             for child in box.get_children():
@@ -946,6 +980,21 @@ class PyraSettingsWindow(Gtk.Window):
                       lambda v: self.set_backlight(st.LEVEL_KEY, v), self._focus_row, sensitive=b is not None),
         ]
         return rows
+
+    def _performance_rows(self):
+        if not self.ceiling_ok:
+            return [NoteRow("performance-note", st.CEILING_NOTE)]
+        # File unreadable: the choice stays, greyed out, with no option selected; the status line says why.
+        current = st.ceiling_choice(self.ceiling) if self.ceiling is not None else None
+        sub = st.CEILING_SUB
+        if self.ceiling is not None and current is None:
+            sub = "Custom (%d MHz). %s" % (self.ceiling, sub)
+        return [
+            HeaderRow("h-cpu", "CPU"),
+            ChoiceRow("cpu-max", "Top CPU speed", sub, st.CPU_MAX_OPTIONS, current, self.set_ceiling,
+                      self._focus_row, locked=True, sensitive=self.ceiling is not None and not self.busy),
+            InfoRow("top-speed", "Top speed now", self.top_speed or "Unknown"),
+        ]
 
     def _nub_rows(self):
         n = self.nubs
@@ -1295,6 +1344,14 @@ class PyraSettingsWindow(Gtk.Window):
                 self._clear_status()
         if self.page == VOLUME_PAGE and not self.busy and self.read_volume():
             self.rebuild()
+        if self.page == PERFORMANCE_PAGE and self.ceiling_ok and not self.busy:
+            # An editor may have changed the file, and the thermal ladder the top speed.
+            changed = self.read_ceiling()
+            top_speed, self.top_speed = self.top_speed, st.read_top_speed()
+            if changed or top_speed != self.top_speed:
+                self.rebuild()
+                if self.status_timer is None:
+                    self._clear_status()
         if self.page == DISPLAY_PAGE and self.read_backlight():
             # The applet or an editor may have changed the file.
             self.rebuild()
@@ -1420,7 +1477,8 @@ class PyraSettingsWindow(Gtk.Window):
     def _clear_status(self):
         """Back to the idle line: empty, or the sysfs error, which stays while it lasts."""
         self.status_timer = None
-        errors = [e for e in (self.wake_error, self.nub_error, self.volume_error, self.backlight_error) if e]
+        errors = [e for e in (self.wake_error, self.nub_error, self.volume_error, self.backlight_error,
+                              self.ceiling_error) if e]
         if errors:
             self.status_label.set_text("; ".join(errors))
             self.status_icon.set_from_icon_name("dialog-warning-symbolic", Gtk.IconSize.MENU)

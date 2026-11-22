@@ -6,7 +6,8 @@ sysfs and config roots pointed at a fake tree (docs/testing.md).
 FAKEHELPER_EXIT=126 (or 127, ...) makes it exit with that code and change nothing, to try the GUI's handling of
 a dismissed password or a refusal. FAKEHELPER_PYRAINPUT=<file> points set-nubs at a fake pyrainput.cfg (the GUI's
 PYRA_SETTINGS_PYRAINPUT) and skips the pyrainput reload. FAKEHELPER_VOLUMED=<file> does the same for set-volume
-(the GUI's PYRA_SETTINGS_VOLUMED) and skips the pyra_volumed restart.
+(the GUI's PYRA_SETTINGS_VOLUMED) and skips the pyra_volumed restart. FAKEHELPER_THERMAL=<file> points set-cpu-max at
+a fake /etc/default/pyra-thermal (the GUI's PYRA_SETTINGS_THERMAL).
 """
 
 import os
@@ -30,6 +31,9 @@ def main(argv):
     volumed = os.environ.get("FAKEHELPER_VOLUMED")
     if volumed:
         helper.VOLUMED_PATH, helper.VOLUMED_RESTART = volumed, ["true"]
+    thermal = os.environ.get("FAKEHELPER_THERMAL")
+    if thermal:
+        helper.THERMAL_PATH = thermal
     return helper.main(argv[2:])
 
 
