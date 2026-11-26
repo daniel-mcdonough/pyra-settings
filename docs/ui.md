@@ -18,6 +18,8 @@ changes are a design decision, to be agreed first.
   sketch's name and place; the sketch's tuning switch and thermal rows are not part of it.
 - About page agreed by the owner on 2026-11-22: a copy button and pyra-info's text as it is ("About" under
   "Pages"), chosen over one info row per field.
+- Rumble page agreed by the owner on 2026-11-26: a switch, a four-step strength choice and a test button
+  ("Rumble" under "Pages"), chosen over a slider of raw codes; the start level (`min_code`) left out.
 
 ## Decisions on the mockup
 
@@ -60,6 +62,7 @@ v1 pages, in order:
 | Display & keyboard light (v2) | `display-brightness-symbolic` (working) | How far the screen dims when idle, and the keyboard light at login. (working) |
 | Performance (v2) | `utilities-system-monitor-symbolic` | How fast the CPU may run. |
 | Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
+| Rumble (v2) | `input-gaming-symbolic` | How strongly the motor rumbles in games. |
 | Volume wheel (v2) | `audio-volume-high-symbolic` | How the wheel sets the speaker and headphone volume. |
 | About | `help-about-symbolic` | This Pyra and its software, for a bug report. |
 
@@ -379,6 +382,28 @@ wheel page's note. Checked once at start. Otherwise:
   Pyra (Sans 12, 117 dpi) the buttons are 60-99 px each and the row needed 1009 px, so the page needed 1089 px,
   the window 1403 px: wider than the screen, and it could not maximize. Stacked, the row needs 845 px, the page
   925 px and the window 1239 px (measured on the Pyra with `get_preferred_width`); it maximizes.
+
+### Rumble
+
+Agreed by the owner on 2026-11-26, drafted from the row kinds above. What the settings do: `design.md`,
+"Rumble". In the sidebar after Nubs.
+
+Without dragonbox-pyra patch 0055 (no `/sys/module/twl6040_vibra/parameters/max_code`) the page holds one row,
+"This kernel has no rumble settings. Kernels with dragonbox-pyra patch 0055 have them." Checked once at start.
+Otherwise, with no header:
+
+1. Switch **Rumble**, through the helper (lock icon), subtitle "Off stops the motor for every game."
+2. Choice **Strength**, through the helper (lock icon): Light / Medium / Strong / Max. Subtitle "Max may cut out
+   on a full battery." A code that is none of the four (written by hand) shows no option selected, subtitle
+   "Custom (code N). " before it.
+3. Button **Test rumble**, subtitle "One second at this strength.", action "Play". No lock icon: it runs as the
+   user. With rumble off it is greyed out and the subtitle says "Rumble is off."
+
+**As built (0.18; checked on the Pyra at 1280x720, 2026-11-26).** The page shows the parameters in effect
+(sysfs), read at start, on opening the page and after each save; not the modprobe.d file. After a save: "Saved"
+for 3 s. Parameters unreadable: the switch and choice stay, greyed out, nothing selected; the status line's idle
+text says "Can't read the rumble settings: <error> (<file>)". A press of Play while a test plays does nothing.
+Checked on the greeter's display (no Menta theme there): the page needs no more width than Performance's.
 
 ### About
 

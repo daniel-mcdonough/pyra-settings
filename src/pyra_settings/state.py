@@ -4,13 +4,16 @@ docs/nubs.md and docs/volume-wheel.md; the presets, groups, warnings and options
 
 The GUI reads sysfs, /etc/pyrainput.cfg, /etc/pyra_volumed.conf and /etc/default/pyra-thermal and never writes
 them. PYRA_SETTINGS_SYSFS, PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED, PYRA_SETTINGS_IIO,
-PYRA_SETTINGS_THERMAL, PYRA_SETTINGS_THERMAL_SCRIPT and PYRA_SETTINGS_CPUFREQ point it at fake files on the PC, and
-PYRA_SETTINGS_AUDIO at a stand-in for amixer, pactl and paplay; the helper never reads any of these variables.
+PYRA_SETTINGS_THERMAL, PYRA_SETTINGS_THERMAL_SCRIPT, PYRA_SETTINGS_CPUFREQ, PYRA_SETTINGS_RUMBLE and
+PYRA_SETTINGS_INPUT point it at fake files on the PC, and PYRA_SETTINGS_AUDIO at a stand-in for amixer, pactl and
+paplay; the helper never reads any of these variables. The test rumble opens the vibra's event device as the user.
 The one file the GUI writes itself is the user's ~/.config/pyra-backlight.conf (PYRA_SETTINGS_BACKLIGHT on the PC).
 
 """
 
 import configparser
+import ctypes
+import fcntl
 import json
 import os
 import re
@@ -26,6 +29,9 @@ IIO_ROOT = os.environ.get("PYRA_SETTINGS_IIO", "/sys/bus/iio/devices")
 THERMAL_PATH = os.environ.get("PYRA_SETTINGS_THERMAL", "/etc/default/pyra-thermal")
 THERMAL_SCRIPT = os.environ.get("PYRA_SETTINGS_THERMAL_SCRIPT", "/usr/share/pyra/scripts/pyra-thermal.sh")
 CPUFREQ_PATH = os.environ.get("PYRA_SETTINGS_CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq")
+# dragonbox-pyra patch 0055's twl6040-vibra parameters, and the input class the test rumble finds the motor in.
+RUMBLE_PARAMS = os.environ.get("PYRA_SETTINGS_RUMBLE", "/sys/module/twl6040_vibra/parameters")
+INPUT_ROOT = os.environ.get("PYRA_SETTINGS_INPUT", "/sys/class/input")
 # dragonbox-pyra's bug-report tool (its prep fix 31). The About page shows and copies what it prints.
 INFO_BINARY = os.environ.get("PYRA_SETTINGS_INFO", "/usr/local/bin/pyra-info")
 GAME_DEV = "pyra-game-buttons"
@@ -1008,6 +1014,129 @@ def read_top_speed(path=None):
             return "%d MHz" % (int(f.read().strip()) // 1000)
     except (OSError, ValueError):
         return "Unknown"
+
+
+# The Rumble page (docs/ui.md "Rumble"): twl6040-vibra's enable and max_code (docs/design.md "Rumble").
+Rumble = namedtuple("Rumble", "enable code")
+RUMBLE_OPTIONS = (("44", "Light"), ("50", "Medium"), ("56", "Strong"), ("60", "Max"))
+RUMBLE_NOTE = "This kernel has no rumble settings. Kernels with dragonbox-pyra patch 0055 have them."
+RUMBLE_SWITCH_SUB = "Off stops the motor for every game."
+RUMBLE_STRENGTH_SUB = "Max may cut out on a full battery."
+RUMBLE_TEST_SUB = "One second at this strength."
+RUMBLE_TEST_OFF_SUB = "Rumble is off."
+RUMBLE_TEST_MS = 1000
+VIBRA_NAME = "twl6040:vibrator"
+
+
+def rumble_supported(params=None):
+    """The driver has 0055's parameters. By the file, never by kernel version."""
+    return os.path.exists(os.path.join(params or RUMBLE_PARAMS, "max_code"))
+
+
+def read_rumble(params=None):
+    """The parameters in effect. Raises OSError, or ValueError for a value that doesn't parse."""
+    params = params or RUMBLE_PARAMS
+    enable = _read(os.path.join(params, "enable")).strip()
+    code = _read(os.path.join(params, "max_code")).strip()
+    if enable not in ("Y", "N"):
+        raise ValueError("enable is %r, not Y or N" % enable)
+    if not re.fullmatch(r"[0-9]{1,3}", code, re.ASCII):
+        raise ValueError("max_code is %r, not a number" % code)
+    return Rumble(enable == "Y", int(code))
+
+
+def rumble_choice(code):
+    """The option for a code, None (Custom) for any other."""
+    return str(code) if str(code) in dict(RUMBLE_OPTIONS) else None
+
+
+def rumble_error_text(error):
+    return "Can't read the rumble settings: %s" % _error_detail(error)
+
+
+def rumble_argv(enable=None, strength=None):
+    args = []
+    if strength is not None:
+        args.append("strength=%s" % strength)
+    if enable is not None:
+        args.append("enable=%s" % ("on" if enable else "off"))
+    return helper_command() + ["set-rumble"] + args
+
+
+def find_vibra(root=None):
+    """The motor's event device, /dev/input/eventN, by its name; None if there is none."""
+    root = root or INPUT_ROOT
+    try:
+        names = sorted(n for n in os.listdir(root) if re.fullmatch(r"event[0-9]+", n))
+    except OSError:
+        return None
+    for name in names:
+        try:
+            with open(os.path.join(root, name, "device", "name")) as f:
+                if f.read().strip() == VIBRA_NAME:
+                    return os.path.join("/dev/input", name)
+        except OSError:
+            continue
+    return None
+
+
+# <linux/input.h>, laid out by ctypes for the machine it runs on (32-bit on the Pyra).
+class _FFEnvelope(ctypes.Structure):
+    _fields_ = [("attack_length", ctypes.c_uint16), ("attack_level", ctypes.c_uint16),
+                ("fade_length", ctypes.c_uint16), ("fade_level", ctypes.c_uint16)]
+
+
+class _FFPeriodic(ctypes.Structure):
+    _fields_ = [("waveform", ctypes.c_uint16), ("period", ctypes.c_uint16), ("magnitude", ctypes.c_int16),
+                ("offset", ctypes.c_int16), ("phase", ctypes.c_uint16), ("envelope", _FFEnvelope),
+                ("custom_len", ctypes.c_uint32), ("custom_data", ctypes.c_void_p)]
+
+
+class _FFRumble(ctypes.Structure):
+    _fields_ = [("strong_magnitude", ctypes.c_uint16), ("weak_magnitude", ctypes.c_uint16)]
+
+
+class _FFUnion(ctypes.Union):
+    # The periodic effect is the union's largest member, so it sets the size the kernel expects.
+    _fields_ = [("rumble", _FFRumble), ("periodic", _FFPeriodic)]
+
+
+class _FFEffect(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_uint16), ("id", ctypes.c_int16), ("direction", ctypes.c_uint16),
+                ("trigger_button", ctypes.c_uint16), ("trigger_interval", ctypes.c_uint16),
+                ("replay_length", ctypes.c_uint16), ("replay_delay", ctypes.c_uint16), ("u", _FFUnion)]
+
+
+class _InputEvent(ctypes.Structure):
+    # The time is two longs for 32-bit userspace with a 64-bit time_t too (trixie armhf); the kernel ignores it.
+    _fields_ = [("sec", ctypes.c_ulong), ("usec", ctypes.c_ulong), ("type", ctypes.c_uint16),
+                ("code", ctypes.c_uint16), ("value", ctypes.c_int32)]
+
+
+FF_RUMBLE = 0x50
+EV_FF = 0x15
+EVIOCSFF = (1 << 30) | (ctypes.sizeof(_FFEffect) << 16) | (ord("E") << 8) | 0x80
+
+
+def play_rumble(path, ms=RUMBLE_TEST_MS):
+    """Start a full-magnitude rumble of ms on the event device and return its open fd. Closing the fd stops it:
+    the kernel erases an fd's effects when it is closed. Raises OSError."""
+    fd = os.open(path, os.O_RDWR | os.O_CLOEXEC)
+    try:
+        effect = _FFEffect(type=FF_RUMBLE, id=-1, replay_length=ms)
+        effect.u.rumble.strong_magnitude = 0xFFFF
+        buf = bytearray(bytes(effect))
+        fcntl.ioctl(fd, EVIOCSFF, buf, True)
+        effect = _FFEffect.from_buffer(buf)
+        os.write(fd, bytes(_InputEvent(type=EV_FF, code=effect.id, value=1)))
+    except OSError:
+        os.close(fd)
+        raise
+    return fd
+
+
+def rumble_play_error_text(error):
+    return "Can't play a rumble: %s" % (error.strerror or error)
 
 
 def helper_message(code, stderr="", saved=SAVED_WAKE):

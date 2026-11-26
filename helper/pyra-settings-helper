@@ -9,20 +9,25 @@ pyra-settings-apply.service at boot. Commands:
     set-nubs <key>=<value>...            edit the nub keys of /etc/pyrainput.cfg and reload pyrainput
     set-volume <key>=<value>...          edit cal, range, hsrange in /etc/pyra_volumed.conf and restart pyra_volumed
     set-cpu-max <MHz>|none               write the CPU ceiling to /etc/default/pyra-thermal, or delete the file
+    set-rumble <key>=<value>...          enable=on|off, strength=<code>: the vibra driver's parameters, live and in
+                                         /etc/modprobe.d/pyra-settings-rumble.conf
     apply                                reapply the config file to sysfs
 
 set-wake writes sysfs first and the config file only if every sysfs write succeeded, so a write the kernel
 refuses changes nothing. apply never writes the config. set-nubs checks every pair before it writes anything;
 pyrainput's own file needs no boot apply, the daemon reads it at start (docs/nubs.md). set-volume is the same for
 pyra_volumed's file (docs/volume-wheel.md). set-cpu-max takes one of kernel patch 0007's steps; the thermal
-daemon reads the file every pass, so it needs no restart and no boot apply.
+daemon reads the file every pass, so it needs no restart and no boot apply. set-rumble writes the module's
+parameters in sysfs first, then the modprobe.d file from what the kernel reads back; modprobe applies that file
+when it loads the module at boot, so it needs no boot apply either (docs/design.md "Rumble").
 
 Exit codes: 0 done, 1 a write or read failed, 2 the request was refused (bad arguments, unknown device, a code
 the device doesn't have, the power button). 126 and 127 stay free for pkexec's own "dismissed" and "not
 authorized".
 
-The sysfs, config, pyrainput, pyra_volumed and pyra-thermal locations are the module constants below. Nothing from the caller (argument, environment)
-can change them; only the test suite overrides them, by importing this file.
+The sysfs, config, pyrainput, pyra_volumed, pyra-thermal and modprobe.d locations are the module constants below.
+Nothing from the caller (argument, environment) can change them; only the test suite overrides them, by importing
+this file.
 """
 
 import configparser
@@ -45,6 +50,10 @@ VOLUMED_RESTART = ["/usr/bin/systemctl", "try-restart", "pyra_volumed.service"]
 # daemon reads CPU_MAX_MHZ from this file on every pass, about every 2 s. No file is no ceiling. The package doesn't
 # ship it, so the helper owns the whole file: it writes it whole, and a hand-written comment doesn't survive.
 THERMAL_PATH = "/etc/default/pyra-thermal"
+# Rumble (docs/design.md "Rumble"): dragonbox-pyra patch 0055's twl6040-vibra parameters, and the modprobe.d file
+# that sets them when the module loads. The package doesn't ship the file; the helper writes it whole.
+RUMBLE_PARAMS = "/sys/module/twl6040_vibra/parameters"
+RUMBLE_PATH = "/etc/modprobe.d/pyra-settings-rumble.conf"
 
 # Device names the caller may use, mapped to their sysfs directory under SYSFS_ROOT.
 GAME_BUTTONS = "game-buttons"
@@ -536,6 +545,64 @@ def cmd_set_cpu_max(args):
     write_file_atomic(THERMAL_PATH, "%s\nCPU_MAX_MHZ=%s\n" % (THERMAL_HEADER, value), 0o644)
 
 
+# Full-strength codes the page offers (Light, Medium, Strong, Max). 56 is 0055's default; the kernel refuses
+# anything above 60, since 64 trips the driver's overcurrent detection.
+RUMBLE_STEPS = (44, 50, 56, 60)
+RUMBLE_KEYS = ("enable", "strength")
+# The file's first line. debian/postrm deletes the file on purge only if it starts with this.
+RUMBLE_HEADER = "# Written by pyra-settings. Rumble on or off, and its full strength (twl6040-vibra, patch 0055)."
+
+
+def parse_rumble_args(args):
+    """key=value arguments as {"max_code": "<code>", "enable": "Y"|"N"}, in the order they are written: the code
+    first, the one write the kernel can refuse, so a refusal leaves enable as it was. Raises Refused."""
+    usage = "usage: set-rumble enable=on|off strength=<code>, code one of " + ",".join(map(str, RUMBLE_STEPS))
+    if not args:
+        raise Refused(usage)
+    seen = {}
+    for arg in args:
+        key, sep, value = arg.partition("=")
+        if not sep or key not in RUMBLE_KEYS:
+            raise Refused("not a rumble setting: %r (%s)" % (arg, usage))
+        if key in seen:
+            raise Refused("%s given twice" % key)
+        seen[key] = value
+    params = {}
+    if "strength" in seen:
+        value = seen["strength"]
+        if not re.fullmatch(r"[1-9][0-9]", value, re.ASCII) or int(value) not in RUMBLE_STEPS:
+            raise Refused("not a rumble strength: %r (%s)" % (value, usage))
+        params["max_code"] = value
+    if "enable" in seen:
+        if seen["enable"] not in ("on", "off"):
+            raise Refused("enable must be on or off, not %r" % seen["enable"])
+        params["enable"] = "Y" if seen["enable"] == "on" else "N"
+    return params
+
+
+def read_rumble_params():
+    """(enable, max_code) as the kernel reads them back: "Y"/"N" and a code. Raises Failed."""
+    enable = read_attr(os.path.join(RUMBLE_PARAMS, "enable")).strip()
+    code = read_attr(os.path.join(RUMBLE_PARAMS, "max_code")).strip()
+    if enable not in ("Y", "N") or not re.fullmatch(r"[0-9]{1,3}", code, re.ASCII):
+        raise Failed("unexpected rumble parameters in %s: enable=%r max_code=%r" % (RUMBLE_PARAMS, enable, code))
+    return enable, code
+
+
+def cmd_set_rumble(args):
+    params = parse_rumble_args(args)
+    # Detected by the file, never by kernel version; the stock driver has no parameters at all.
+    if not os.path.exists(os.path.join(RUMBLE_PARAMS, "max_code")):
+        raise Failed("no %s/max_code: the vibra driver isn't loaded, or the kernel lacks dragonbox-pyra patch 0055"
+                     % RUMBLE_PARAMS)
+    for name, value in params.items():
+        write_attr(os.path.join(RUMBLE_PARAMS, name), value)
+    # The file gets what is in effect now, both parameters, so a reboot keeps exactly that.
+    enable, code = read_rumble_params()
+    text = "%s\noptions twl6040_vibra enable=%s max_code=%s\n" % (RUMBLE_HEADER, enable, code)
+    write_file_atomic(RUMBLE_PATH, text, 0o644)
+
+
 def cmd_apply(args):
     """Apply every setting in the config. A missing key leaves the kernel default; one bad setting doesn't stop
     the others."""
@@ -566,6 +633,7 @@ COMMANDS = {
     "set-nubs": cmd_set_nubs,
     "set-volume": cmd_set_volume,
     "set-cpu-max": cmd_set_cpu_max,
+    "set-rumble": cmd_set_rumble,
     "apply": cmd_apply,
 }
 
@@ -573,7 +641,7 @@ COMMANDS = {
 def main(argv):
     if not argv or argv[0] not in COMMANDS:
         log("refused: usage: pyra-settings-helper set-wake <device> <value> | set-nubs <key>=<value>... | "
-            "set-volume <key>=<value>... | set-cpu-max <MHz>|none | apply")
+            "set-volume <key>=<value>... | set-cpu-max <MHz>|none | set-rumble <key>=<value>... | apply")
         return EXIT_REFUSED
     try:
         return COMMANDS[argv[0]](argv[1:]) or EXIT_OK

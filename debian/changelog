@@ -1,3 +1,13 @@
+pyra-settings (0.18) trixie; urgency=medium
+
+  * GUI: Rumble page: rumble on or off, its strength (Light, Medium,
+    Strong, Max) and a one-second test. Needs dragonbox-pyra kernel patch
+    0055 (twl6040-vibra parameters); without it the page says so.
+  * Helper: set-rumble writes the vibra driver's enable and max_code, and
+    /etc/modprobe.d/pyra-settings-rumble.conf so they survive a reboot.
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Thu, 26 Nov 2026 22:00:00 +0000
+
 pyra-settings (0.17) trixie; urgency=medium
 
   * GUI: About page: what dragonbox-pyra's pyra-info prints (boards,

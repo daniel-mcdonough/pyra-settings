@@ -59,14 +59,16 @@ PAGES = (
      "How far the screen dims when idle, and the keyboard light at login."),
     ("performance", "Performance", "utilities-system-monitor-symbolic", "How fast the CPU may run."),
     ("nubs", "Nubs", "input-mouse-symbolic", "What the nubs do, and how fast they move."),
+    ("rumble", "Rumble", "input-gaming-symbolic", "How strongly the motor rumbles in games."),
     ("volume", "Volume wheel", "audio-volume-high-symbolic", "How the wheel sets the speaker and headphone volume."),
     ("about", "About", "help-about-symbolic", "This Pyra and its software, for a bug report."),
 )
 DISPLAY_PAGE = 3
 PERFORMANCE_PAGE = 4
 NUBS_PAGE = 5
-VOLUME_PAGE = 6
-ABOUT_PAGE = 7
+RUMBLE_PAGE = 6
+VOLUME_PAGE = 7
+ABOUT_PAGE = 8
 WHEEL_POLL_MS = 250
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
@@ -80,6 +82,7 @@ SAVED_WAKE_MS = 4000
 FINE_REST_MS = 1000      # a Fine slider writes once its value has rested this long (docs/ui.md "Fine sliders")
 ERROR_MS = 8000
 TOP_SPEED_MS = 2500      # after a ceiling save, the daemon's next pass has run (about every 2 s)
+RUMBLE_CLOSE_MS = st.RUMBLE_TEST_MS + 200   # the test rumble's fd stays open past the effect's own end
 
 K = Gdk
 KEYS_A = {K.KEY_Home, K.KEY_Return, K.KEY_KP_Enter, K.KEY_space}
@@ -290,21 +293,24 @@ class ButtonRow(Row):
     focusable = True
     kind = "button"
 
-    def __init__(self, key, label, subtitle, action, on_activate, locked=False):
+    def __init__(self, key, label, subtitle, action, on_activate, locked=False, sensitive=True):
         super().__init__(key, label, subtitle, locked)
         self.action = action
         self.on_activate = on_activate
+        self.sensitive = sensitive
         button = self.button = Gtk.Button(can_focus=False, valign=Gtk.Align.CENTER)
         inner = Gtk.Box(spacing=6)
         inner.pack_start(Gtk.Label(label=action), False, False, 0)
         inner.pack_start(Gtk.Image.new_from_icon_name("go-next-symbolic", Gtk.IconSize.MENU), False, False, 0)
         button.add(inner)
         self.box.pack_end(button, False, False, 0)
+        self.box.set_sensitive(sensitive)
         self.widget.set_above_child(True)
         self.on_click = self.activate
 
     def activate(self):
-        self.on_activate()
+        if self.sensitive:
+            self.on_activate()
 
 
 class RangeRow(ButtonRow):
@@ -486,6 +492,9 @@ class PyraSettingsWindow(Gtk.Window):
         self.ceiling = None         # MHz, CPU_TOP_MHZ for no ceiling
         self.ceiling_error = None
         self.top_speed = None       # scaling_max_freq as text, read when the Performance page opens
+        self.rumble = None          # st.Rumble, the driver's parameters in effect
+        self.rumble_error = None
+        self.rumble_fd = None       # the vibra's event device while the test rumble plays
         self.cal = None             # st.Calibration while the guided calibration runs
         self.cal_samples = None     # readings for the current mark while it is being recorded
         self.wheel_raw = None
@@ -567,6 +576,9 @@ class PyraSettingsWindow(Gtk.Window):
         self.ceiling_ok = st.ceiling_supported()
         self.read_ceiling()
         self.top_speed = st.read_top_speed()
+        # Once, like the ceiling check: a kernel without 0055 doesn't gain it while the app runs.
+        self.rumble_ok = st.rumble_supported()
+        self.read_rumble()
         self.info, self.info_error = st.read_info()
         self.read_jack()
         self.rebuild()
@@ -634,6 +646,18 @@ class PyraSettingsWindow(Gtk.Window):
             self.ceiling, self.ceiling_error = None, st.ceiling_error_text(e)
         return old != self.ceiling
 
+    def read_rumble(self):
+        """Read the vibra driver's parameters; True if what the page shows changed."""
+        old = self.rumble
+        if not self.rumble_ok:
+            return False
+        try:
+            self.rumble = st.read_rumble()
+            self.rumble_error = None
+        except (OSError, ValueError) as e:
+            self.rumble, self.rumble_error = None, st.rumble_error_text(e)
+        return old != self.rumble
+
     def read_backlight(self):
         """Read ~/.config/pyra-backlight.conf; True if what the page shows changed."""
         old = (self.backlight.dim, self.backlight.level) if self.backlight else None
@@ -654,6 +678,7 @@ class PyraSettingsWindow(Gtk.Window):
         return old != self.jack
 
     def _destroyed(self, _window):
+        self._stop_rumble()
         if self.rng is not None:
             self._end_range()
         if self.fine and not self.busy:
@@ -693,6 +718,35 @@ class PyraSettingsWindow(Gtk.Window):
     def set_ceiling(self, option):
         """set-cpu-max; the thermal daemon reads the file within 2 s, and the top speed is read again after."""
         self.run_helper(st.cpu_max_argv(option), saved=st.SAVED_CPU, ceiling=st.ceiling_mhz(option))
+
+    def set_rumble_enable(self, on):
+        """set-rumble; the driver takes it at the next rumble change, so a playing effect ends first."""
+        self.run_helper(st.rumble_argv(enable=on), saved=st.SAVED, rumble=self.rumble._replace(enable=on))
+
+    def set_rumble_strength(self, option):
+        self.run_helper(st.rumble_argv(strength=option), saved=st.SAVED,
+                        rumble=self.rumble._replace(code=int(option)))
+
+    def test_rumble(self):
+        """One second at full magnitude, which the driver plays at max_code. As the user: no password."""
+        if self.rumble_fd is not None:
+            return
+        path = st.find_vibra()
+        if path is None:
+            self.status("Can't play a rumble: no %s input device." % st.VIBRA_NAME, ERROR_MS, error=True)
+            return
+        try:
+            self.rumble_fd = st.play_rumble(path)
+        except OSError as e:
+            self.status(st.rumble_play_error_text(e), ERROR_MS, error=True)
+            return
+        GLib.timeout_add(RUMBLE_CLOSE_MS, self._stop_rumble)
+
+    def _stop_rumble(self):
+        if self.rumble_fd is not None:
+            os.close(self.rumble_fd)
+            self.rumble_fd = None
+        return False
 
     def _reread_top_speed(self):
         top_speed, self.top_speed = self.top_speed, st.read_top_speed()
@@ -743,7 +797,7 @@ class PyraSettingsWindow(Gtk.Window):
                 self.settings.set_boolean(key, False)
         self.status(st.SAVED, SAVED_MS)
 
-    def run_helper(self, argv, saved=st.SAVED_WAKE, wake=None, nubs=None, volume=None, ceiling=None):
+    def run_helper(self, argv, saved=st.SAVED_WAKE, wake=None, nubs=None, volume=None, ceiling=None, rumble=None):
         """Run the helper without blocking the window while the polkit agent asks for the password. The
         controls show the requested value (wake or nubs) until it finishes, then sysfs and the file again."""
         if self.busy:
@@ -759,6 +813,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.nubs = nubs or self.nubs
         self.volume = volume or self.volume
         self.ceiling = ceiling or self.ceiling
+        self.rumble = rumble or self.rumble
         self.rebuild()
         proc.communicate_utf8_async(None, None, self._helper_done)
 
@@ -774,6 +829,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.read_nubs()
         self.read_volume()
         self.read_ceiling()
+        self.read_rumble()
         self.rebuild()
         if ok and self.saved == st.SAVED_CPU:
             GLib.timeout_add(TOP_SPEED_MS, self._reread_top_speed)
@@ -880,7 +936,8 @@ class PyraSettingsWindow(Gtk.Window):
         focused_key = focused.key if focused else None
         self.rows = {}
         builders = (self._quick_rows, self._wake_rows, self._battery_rows, self._display_rows,
-                    self._performance_rows, self._nub_rows, self._volume_rows, self._about_rows)
+                    self._performance_rows, self._nub_rows, self._rumble_rows, self._volume_rows,
+                    self._about_rows)
         for i, build in enumerate(builders):
             box = self.page_boxes[i]
             for child in box.get_children():
@@ -1017,6 +1074,26 @@ class PyraSettingsWindow(Gtk.Window):
                       self._focus_row, locked=True, sensitive=self.ceiling is not None and not self.busy,
                       stacked=True),
             InfoRow("top-speed", "Top speed now", self.top_speed or "Unknown"),
+        ]
+
+    def _rumble_rows(self):
+        if not self.rumble_ok:
+            return [NoteRow("rumble-note", st.RUMBLE_NOTE)]
+        # Parameters unreadable: the rows stay, greyed out, nothing selected; the status line says why.
+        r = self.rumble
+        sensitive = r is not None and not self.busy
+        current = st.rumble_choice(r.code) if r else None
+        sub = st.RUMBLE_STRENGTH_SUB
+        if r is not None and current is None:
+            sub = "Custom (code %d). %s" % (r.code, sub)
+        on = bool(r and r.enable)
+        return [
+            SwitchRow("rumble-enable", "Rumble", st.RUMBLE_SWITCH_SUB, on, self.set_rumble_enable, locked=True,
+                      sensitive=sensitive),
+            ChoiceRow("rumble-strength", "Strength", sub, st.RUMBLE_OPTIONS, current, self.set_rumble_strength,
+                      self._focus_row, locked=True, sensitive=sensitive),
+            ButtonRow("rumble-test", "Test rumble", st.RUMBLE_TEST_SUB if on or r is None else st.RUMBLE_TEST_OFF_SUB,
+                      "Play", self.test_rumble, sensitive=on and not self.busy),
         ]
 
     def _about_rows(self):
@@ -1389,6 +1466,11 @@ class PyraSettingsWindow(Gtk.Window):
                 self.rebuild()
                 if self.status_timer is None:
                     self._clear_status()
+        if self.page == RUMBLE_PAGE and not self.busy and self.read_rumble():
+            # A game's own setting or a hand write may have changed the parameters.
+            self.rebuild()
+            if self.status_timer is None:
+                self._clear_status()
         if self.page == ABOUT_PAGE:
             # A package run or a boot-kernel change since the last read changes what it prints.
             info = st.read_info()
@@ -1521,7 +1603,7 @@ class PyraSettingsWindow(Gtk.Window):
         """Back to the idle line: empty, or the sysfs error, which stays while it lasts."""
         self.status_timer = None
         errors = [e for e in (self.wake_error, self.nub_error, self.volume_error, self.backlight_error,
-                              self.ceiling_error) if e]
+                              self.ceiling_error, self.rumble_error) if e]
         if errors:
             self.status_label.set_text("; ".join(errors))
             self.status_icon.set_from_icon_name("dialog-warning-symbolic", Gtk.IconSize.MENU)

@@ -10,6 +10,11 @@ if [ "$1" = "purge" ]; then
 		rm -f /etc/default/pyra-thermal
 	fi
 	rm -f /etc/default/pyra-thermal.new
+	# The rumble settings, likewise only if the helper wrote them.
+	if [ "$(head -n 1 /etc/modprobe.d/pyra-settings-rumble.conf 2>/dev/null)" = "# Written by pyra-settings. Rumble on or off, and its full strength (twl6040-vibra, patch 0055)." ]; then
+		rm -f /etc/modprobe.d/pyra-settings-rumble.conf
+	fi
+	rm -f /etc/modprobe.d/pyra-settings-rumble.conf.new
 fi
 
 #DEBHELPER#

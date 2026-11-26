@@ -2,7 +2,7 @@
 
 Pyra Settings is a small GTK 3 app for the settings only the Pyra has. Version 1 covers suspend and wake: which
 buttons wake the machine, whether the lid wakes it, what the lid does and the critical-battery action. Version 2
-adds the nubs, the volume wheel, the screen dim depth, the keyboard light and a CPU ceiling ("v2: agreed").
+adds the nubs, the volume wheel, the screen dim depth, the keyboard light, a CPU ceiling and rumble ("v2: agreed").
 Per-button wake needs [dragonbox-pyra](https://github.com/daniel-mcdonough/dragonbox-pyra) `patches/0053`, in
 the next Pyra image's kernel.
 
@@ -156,6 +156,7 @@ MATE covers.
 | Nubs: what each axis does, clicks, sensitivity, deadzones | `/etc/pyrainput.cfg`, root daemon funkeymonkey-pyrainput, `systemctl reload pyrainput` | Done: helper `set-nubs` (`nubs.md`); profiles out of scope. GUI after the layout |
 | Screen dimming: depth and delay | Depth `[screen] dim` in the per-user config file (pyra-backlight 0.4); delay `org.mate.session idle-delay`, shown, set in MATE (below) | Decided and built; the page's layout in `ui.md` |
 | Keyboard light: level at login, off when idle | `pyra::kbd_backlight` LED; pyra-idle-dim with a per-user config file (below) | Decided; pyra-backlight change, then the page's layout in `ui.md` |
+| Rumble: on or off, strength | dragonbox-pyra patch 0055's `twl6040_vibra` parameters `enable` and `max_code`; helper `set-rumble` (below) | Done in 0.18: helper, Rumble page (`ui.md` "Rumble") |
 | CPU ceiling: a top speed the thermal daemon keeps | `/etc/default/pyra-thermal` `CPU_MAX_MHZ`, read by pyra-hacks 0.38+pyra5's thermal daemon every pass; helper `set-cpu-max` (below) | Done in 0.15: helper, Performance page (`ui.md` "Performance") |
 | Volume wheel: calibration, headphones on the wheel | `/etc/pyra_volumed.conf` (`cal`, `range`, `hsrange`), root daemon `pyra_volumed`, helper `set-volume` (`docs/volume-wheel.md`) | Helper done; a daemon that reads the file (pyra-hacks fork 0.38+pyra2 or later, not fix 12's), check on the Pyra, page built (`ui.md` "Volume wheel"), the fork's flutter fixed in 0.38+pyra3; page on the Pyra next |
 
@@ -301,6 +302,41 @@ own".
 - **Purge.** `postrm purge` deletes the file only if its first line is the helper's header, so a ceiling written by
   hand stays. Plain removal keeps it: the daemon still honours it, and `scaling_max_freq` shows it.
 - **Not exposed:** the ladder's rungs (see "Not exposed").
+
+### Rumble
+
+**Mechanism.** The Pyra has one vibration motor, on the TWL6040's right vibra channel. dragonbox-pyra patch 0055
+(`docs/kernel-changes.md` there) gives `twl6040-vibra` three module parameters in
+`/sys/module/twl6040_vibra/parameters/`, writable at run time: `enable` (Y/N; N plays nothing, from the next
+effect change), `max_code` (the drive code of a full-strength effect, 0-60; default 56) and `min_code` (where the
+weakest nonzero effect starts; default 32). The kernel refuses `max_code` and `min_code` above 60: code 64 trips
+the driver's overcurrent detection (measured on one unit at 3.84 V; dragonbox-pyra `known-limitations.md` 2.10).
+Reading a parameter gives the value in effect.
+
+**Decisions.**
+
+- **Choices.** Light 44, Medium 50, Strong 56 (0055's default), Max 60 (the kernel's limit). Owner, 2026-11-26:
+  four named steps, not a slider of codes, which mean nothing to a user. The helper takes only these four.
+  "Max may cut out on a full battery": 62 never tripped at 3.84 V, but the drive rises with battery voltage and
+  60 at a full battery is untested (estimate, not measured). A trip only cuts the motor until the next effect.
+- **Start level not exposed** (owner, 2026-11-26). Below about 25 the motor doesn't move, so a lower `min_code`
+  makes light rumble silent; there's nothing a user gains.
+- **Persistence: modprobe.d, not the boot apply.** `twl6040-vibra` is a module (`CONFIG_INPUT_TWL6040_VIBRA=m`), so
+  `/etc/modprobe.d/pyra-settings-rumble.conf` (`options twl6040_vibra enable=… max_code=…`) applies when the module
+  loads, before any game can open it: no race with `pyra-settings-apply.service`, and nothing in the config file.
+  Checked on the Pyra: `enable=N max_code=50` in the file gave those values after a reboot (2026-11-26).
+- **The helper owns the file.** `set-rumble strength=<code> enable=on|off` (either or both) writes sysfs first,
+  the code before enable (the code is the write a kernel could refuse), then reads both back and writes the file
+  whole: what is in effect, not what was asked. A hand-set code survives an enable change. Header line, 0644.
+- **Detect 0055 by the file** (`max_code` exists), never by kernel version, like 0053. Without it the helper writes
+  nothing and the page shows a note. A kernel without 0055 loading the module with the file in place ignores the
+  unknown parameters (the module still loads).
+- **Test rumble as the user.** The desktop user is in group `input` and `twl6040:vibrator`'s event device is
+  `root:input 0660`, so the GUI uploads a one-second `FF_RUMBLE` at full magnitude (it plays at `max_code`) and
+  closes the fd after 1.2 s, which erases the effect. No password. The structs are laid out by `ctypes`, so the
+  32-bit sizes (`ff_effect` 44 bytes, `input_event` 16) come out right on the Pyra; checked there with the
+  codec's VIBCTLR/VIBDATR registers: Light 0x2c, Strong 0x38, Max 0x3c, nothing with rumble off.
+- **Purge** deletes the file only if its first line is the helper's header. Plain removal keeps it.
 
 ### Screen dimming
 
