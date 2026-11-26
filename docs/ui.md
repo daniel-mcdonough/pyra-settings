@@ -403,7 +403,8 @@ Otherwise, with no header:
 (sysfs), read at start, on opening the page and after each save; not the modprobe.d file. After a save: "Saved"
 for 3 s. Parameters unreadable: the switch and choice stay, greyed out, nothing selected; the status line's idle
 text says "Can't read the rumble settings: <error> (<file>)". A press of Play while a test plays does nothing.
-Checked on the greeter's display (no Menta theme there): the page needs no more width than Performance's.
+Checked on the greeter's display (no Menta theme there): the page needs no more width than Performance's. The
+owner looked at it on the Pyra in their session (2026-11-26): looks good.
 
 ### About
 
