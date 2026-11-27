@@ -138,11 +138,6 @@ class ChoiceValueTest(unittest.TestCase):
     def test_custom(self):
         self.assertIsNone(st.choice_value(["suspend", "blank"], st.LID_OPTIONS))
         self.assertIsNone(st.choice_value(["hibernate", "hibernate"], st.LID_OPTIONS))
-        self.assertIsNone(st.choice_value(["hibernate"], st.CRITICAL_OPTIONS))
-        self.assertEqual(st.choice_value(["shutdown"], st.CRITICAL_OPTIONS), "shutdown")
-
-    def test_critical_offers_shutdown_only(self):
-        self.assertEqual([v for v, _ in st.CRITICAL_OPTIONS], ["shutdown"])
 
 
 class HelperTest(unittest.TestCase):

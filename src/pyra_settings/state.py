@@ -63,12 +63,10 @@ PRESETS = (
     (PRESET_NONE, "None"),
 )
 
-# gsettings, schema org.mate.power-manager. Each control writes both keys of its pair.
+# gsettings, schema org.mate.power-manager. The lid control writes both keys of the pair.
 POWER_SCHEMA = "org.mate.power-manager"
 LID_KEYS = ("button-lid-battery", "button-lid-ac")
-CRITICAL_KEY = "action-critical-battery"
 LID_OPTIONS = (("suspend", "Suspend"), ("blank", "Blank screen"), ("nothing", "Do nothing"))
-CRITICAL_OPTIONS = (("shutdown", "Shut down"),)
 
 _LIST_RE = re.compile(r"^[0-9]{1,4}(-[0-9]{1,4})?(,[0-9]{1,4}(-[0-9]{1,4})?)*$")
 

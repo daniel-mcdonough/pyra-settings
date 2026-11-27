@@ -1,7 +1,7 @@
 # Design: features and decisions
 
 Pyra Settings is a small GTK 3 app for the settings only the Pyra has. Version 1 covers suspend and wake: which
-buttons wake the machine, whether the lid wakes it, what the lid does and the critical-battery action. Version 2
+buttons wake the machine, whether the lid wakes it and what the lid does. Version 2
 adds the nubs, the volume wheel, the screen dim depth, the keyboard light, a CPU ceiling and rumble ("v2: agreed").
 Per-button wake needs [dragonbox-pyra](https://github.com/daniel-mcdonough/dragonbox-pyra) `patches/0053`, in
 the next Pyra image's kernel.
@@ -38,7 +38,7 @@ The UI layout is defined in `docs/ui.md`. This file says what the app does and w
 
 | Decision | Choice | Why |
 |---|---|---|
-| v1 scope | Wake buttons, lid wake, lid action, critical battery | To a user they are one feature: what happens when the Pyra is closed and put in a bag |
+| v1 scope | Wake buttons, lid wake, lid action (critical battery until 0.19) | To a user they are one feature: what happens when the Pyra is closed and put in a bag |
 | Idle sleep | Not in the app; MATE's Power Management panel only | Not Pyra-specific. MATE starts the sleep timer only once the session is idle (`org.mate.session idle-delay`, 30 min from Debian's `10_mate-common.gschema.override`), so "5 min" meant about 35. Showing the real time would mean subtracting a delay that also drives the screen dim and lock |
 | polkit default | `auth_admin_keep`: password once, kept for a few minutes | Every later root-level setting inherits it. `yes` would let any process in the session change root settings |
 | Release timing | After the next Pyra image, which carries the 0053 kernel | Per-button wake needs 0053 |
@@ -72,7 +72,7 @@ Pyra-only ones, and leaves everything else in MATE.
 | Wake buttons, lid wake | Pyra Settings only | Pyra-only and root-level; MATE has no concept of it |
 | Lid action (`button-lid-battery`, `button-lid-ac`) | Both | "Lid suspends" plus shoulder buttons that wake is the bag problem: the two must be seen together |
 | Idle sleep (`sleep-computer-battery`, `sleep-computer-ac`) | MATE only | See "Idle sleep" in Decisions |
-| Critical battery action | Both; Pyra Settings offers a restricted set | Hibernate is unsupported and suspend drains the cell |
+| Critical battery action | MATE only (Pyra Settings until 0.19) | See "Not exposed" |
 | Display, sound, keyboard layout, mouse and touchpad, appearance, screensaver, notifications | MATE only | Nothing Pyra-specific. No "Open in MATE" buttons; MATE Control Center is the launcher |
 | Screen brightness | The Pyra Brightness panel applet | It already does it through logind |
 
@@ -86,9 +86,8 @@ duplicating panels that already work.
 | Game buttons that wake the Pyra | `pyra-game-buttons/wakeup_keys` (0053) | Helper, as root | All 14 (device tree) |
 | Lid wakes the Pyra | On: `pyra-lid-wakeup/wakeup_switches` = `0` (0053) and `power/wakeup` = `enabled`. Off: `power/wakeup` = `disabled` | Helper, as root | On |
 | Lid action, battery and AC | gsettings `org.mate.power-manager button-lid-battery`, `button-lid-ac` | GUI, as the user | `blank` |
-| Critical battery action | gsettings `org.mate.power-manager action-critical-battery` | GUI, as the user | `shutdown` (image fix 24) |
 
-**Critical battery on the image** (verified on the device):
+**Critical battery on the image** (verified on the device; the app's row was dropped in 0.19):
 
 - The key's enum (`gsettings range`) is `blank`, `suspend`, `shutdown`, `hibernate`, `interactive`, `nothing`. A
   `gsettings set` of `shutdown` sticks; a value outside the enum is refused (exit 1, value unchanged). The
@@ -129,7 +128,6 @@ The sysfs paths are under `/sys/devices/platform/`. Codes, devices and the kerne
 - Warn when the lid action is `suspend` and a shoulder button still wakes the machine.
 - No warning when only the power button is left to wake it: the always-on Power button row says it.
 - Say that a change takes effect at the next suspend.
-- Critical battery: offer `shutdown` only. Never `hibernate`, `suspend` or `nothing`.
 - Lid action: one control, writing both the `-battery` and `-ac` key. A value the app doesn't
   offer, or differing battery and AC values, shows as "Custom" and is never rewritten unless the user picks one.
 
@@ -376,7 +374,9 @@ at 14 through idle while the keyboard light still went off.
 | Software charge control (the charge ladder in `pyra-thermal.sh`) | By design: no software charge control, the TS pin alone |
 | Thermal ladder rungs | A safety mechanism. Read-only status at most |
 | Undervolt (`pyra-undervolt`) | Developer-only; a bad value crashes the machine |
-| Charger input current (`/etc/default/pyra-charge-current`) | Hardware-capped, but no user need found |
+| Critical battery action (gsettings `action-critical-battery`) | Offered as a one-option row (Shut down) until 0.19. UPower powers off at 2 % whatever MATE's key says (its `HybridSleep` falls back to `PowerOff`, image fix 24), and fix 24 already defaults MATE to `shutdown`. A row whose only option is the default does nothing |
+| Charger input current (`max_current`, `/etc/default/pyra-charge-current`, image fix 8) | Checked again as a charging rate setting and dropped (owner, 2026-11-27). 2 A is the owner's 2026-11-21 choice and applies to every supply. 3 A bought +176 mA on one brick and nothing on another (image `fixes.md` "Fix 8"), the coil may only take 2.7 A (forum, unchecked), and below 2 A the Pyra drains on the charger |
+| Charge current into the cell (bq24297 REG02) | No sysfs attribute: only a forced raw i2c write past the driver, reset by every replug, and `pyra-charge-guard` already writes it. Would need a driver attribute first |
 | DPMS off, compositor off | Debugging workarounds on the dev unit, not preferences |
 | HDMI | Nothing to set: it fails above 640x480 |
 | sysrq, journald size, boot-kernel picker, autologin | Developer or image-build settings |

@@ -54,7 +54,6 @@ CSS = b"""
 PAGES = (
     ("quick", "Quick settings", "preferences-system-symbolic", "The settings you change most, in one place."),
     ("wake", "Suspend & wake", "pyra-settings-suspend-symbolic", "When the Pyra sleeps, and what wakes it up."),
-    ("battery", "Battery", "battery-good-symbolic", "What happens when the battery runs low."),
     ("display", "Display & keyboard light", "display-brightness-symbolic",
      "How far the screen dims when idle, and the keyboard light at login."),
     ("performance", "Performance", "utilities-system-monitor-symbolic", "How fast the CPU may run."),
@@ -63,12 +62,12 @@ PAGES = (
     ("volume", "Volume wheel", "audio-volume-high-symbolic", "How the wheel sets the speaker and headphone volume."),
     ("about", "About", "help-about-symbolic", "This Pyra and its software, for a bug report."),
 )
-DISPLAY_PAGE = 3
-PERFORMANCE_PAGE = 4
-NUBS_PAGE = 5
-RUMBLE_PAGE = 6
-VOLUME_PAGE = 7
-ABOUT_PAGE = 8
+DISPLAY_PAGE = 2
+PERFORMANCE_PAGE = 3
+NUBS_PAGE = 4
+RUMBLE_PAGE = 5
+VOLUME_PAGE = 6
+ABOUT_PAGE = 7
 WHEEL_POLL_MS = 250
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
@@ -275,7 +274,7 @@ class ChoiceRow(Row):
 
     def activate(self):
         i = self._index()
-        # A from "Custom" picks the first option, so a one-option row (Battery) still fixes a custom value.
+        # A from "Custom" picks the first option.
         self._pick(self.values[0 if i is None else (i + 1) % len(self.values)])
 
     def right(self):
@@ -591,7 +590,7 @@ class PyraSettingsWindow(Gtk.Window):
     def _open_settings(self):
         source = Gio.SettingsSchemaSource.get_default()
         if source is None or source.lookup(st.POWER_SCHEMA, True) is None:
-            print("pyra-settings: schema %s not installed; lid and battery settings are off"
+            print("pyra-settings: schema %s not installed; the lid setting is off"
                   % st.POWER_SCHEMA)
             return None
         return Gio.Settings.new(st.POWER_SCHEMA)
@@ -935,7 +934,7 @@ class PyraSettingsWindow(Gtk.Window):
         focused = self._focused_row()
         focused_key = focused.key if focused else None
         self.rows = {}
-        builders = (self._quick_rows, self._wake_rows, self._battery_rows, self._display_rows,
+        builders = (self._quick_rows, self._wake_rows, self._display_rows,
                     self._performance_rows, self._nub_rows, self._rumble_rows, self._volume_rows,
                     self._about_rows)
         for i, build in enumerate(builders):
@@ -1019,18 +1018,6 @@ class PyraSettingsWindow(Gtk.Window):
                               bool(self.wake and self.wake.lid_wake), self.set_lid_wake, locked=True,
                               sensitive=bool(self.wake) and not self.busy))
         return rows
-
-    def _battery_rows(self):
-        current = (st.choice_value([self._get(st.CRITICAL_KEY)], st.CRITICAL_OPTIONS)
-                   if self.settings else None)
-        sub = "Hibernate isn't supported, and suspending would keep draining the battery."
-        if not self.settings:
-            sub = "MATE power settings not found"
-        elif current is None:
-            sub = "Custom. " + sub
-        return [ChoiceRow("critical", "When the battery is critically low", sub, st.CRITICAL_OPTIONS, current,
-                          lambda v: self.set_gsettings((st.CRITICAL_KEY,), v), self._focus_row,
-                          sensitive=bool(self.settings))]
 
     def _display_rows(self):
         if not self.idle_dim:

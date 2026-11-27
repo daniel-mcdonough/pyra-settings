@@ -29,9 +29,8 @@ the Debian package and maintaining a fork.
 
 This separate app's `.desktop` file has `Categories=Settings;HardwareSettings;`, so Pyra Settings shows up in MATE
 Control Center's Hardware group.
-It pulls in only the few MATE settings that interact with Pyra-only ones (the lid action, the critical battery
-action) and leaves everything else in MATE. Both apps write the same gsettings keys, so a change in one shows up
-in the other without any syncing. There's no graceful way around this toe-stepping.
+It pulls in only the MATE setting that interacts with Pyra-only ones (the lid action) and leaves everything else
+in MATE. Both apps write the same gsettings keys, so a change in one shows up in the other without any syncing. There's no graceful way around this toe-stepping.
 
 ## Approach
 
@@ -172,8 +171,6 @@ in [`docs/ui.md`](docs/ui.md).
 - **No idle sleep setting.** MATE only starts the sleep timer after the session goes idle
   (`org.mate.session idle-delay`, 30 minutes by default).
   Idle sleep stays in MATE's Power Management panel.
-- **Critical battery only offers Shut down.** Hibernate isn't supported on the image, and suspending on a critical
-  battery just keeps draining it.
 - **Nub profiles override the Nubs page.** If something ran `pyrainputctl overload`, the page shows a notice.
 
 ## Troubleshooting
@@ -190,7 +187,7 @@ ignores `/etc/pyra_volumed.conf`. Install the pyra-hacks fork package and undo f
 The vendor's 0.38, and a card prepared with dragonbox-pyra's `--no-settings`, don't. Install the fork package and
 restart the app.
 
-**Lid action and battery rows are greyed out with "MATE power settings not found".** The `org.mate.power-manager`
+**Lid action rows are greyed out with "MATE power settings not found".** The `org.mate.power-manager`
 schema isn't installed. On the image it always is; on a PC it usually isn't (see "Running on a PC").
 
 **MATE's Power Management panel shows empty combo boxes.** You probably opened it from ssh. Outside the seat

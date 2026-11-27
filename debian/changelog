@@ -1,3 +1,11 @@
+pyra-settings (0.19) trixie; urgency=medium
+
+  * GUI: Battery page removed. Its one row offered only Shut down for a
+    critical battery, which is the image's default and what UPower does
+    anyway, so MATE's own panel keeps the setting.
+
+ -- pyra-settings maintainers <pyra-settings@example.invalid>  Fri, 27 Nov 2026 18:00:00 +0000
+
 pyra-settings (0.18) trixie; urgency=medium
 
   * GUI: Rumble page: rumble on or off, its strength (Light, Medium,

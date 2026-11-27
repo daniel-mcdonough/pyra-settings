@@ -30,7 +30,7 @@ changes are a design decision, to be agreed first.
 | Material Symbols icons, Noto Sans / Archivo fonts | GTK icon theme symbolic icons, system font | The web fonts aren't on the image |
 | In-app "Authenticate" dialog with A/B buttons | MATE's polkit agent (mate-polkit) shows its own dialog | pkexec's prompt belongs to the agent; the app can't style it |
 | Lock icon disappears after the first password | The lock stays on every root row | `auth_admin_keep` expires after a few minutes and the app can't tell when |
-| Critical battery: "Shut down" / "Power off" | "Shut down" only | The two were the same action |
+| Critical battery: "Shut down" / "Power off" | "Shut down" only; the row and its Battery page dropped in 0.19 | The two were the same action. Dropped: `design.md`, "Not exposed" |
 | One lid control, one idle control | The lid control writes both the `-battery` and `-ac` key; no idle control (idle sleep left to MATE by design, `design.md`) | One concept to the user. Differing values show as "Custom" |
 | Status line "Changes apply immediately" | See "Status line" below | Wake changes matter at the next suspend (`design.md`) |
 | Readings strip on Quick settings | v2, with the Status page | Status readings are a v2 candidate |
@@ -58,7 +58,6 @@ v1 pages, in order:
 |---|---|---|
 | Quick settings | `tune` | The settings you change most, in one place. |
 | Suspend & wake | `bedtime` | When the Pyra sleeps, and what wakes it up. |
-| Battery | `battery_5_bar` | What happens when the battery runs low. |
 | Display & keyboard light (v2) | `display-brightness-symbolic` (working) | How far the screen dims when idle, and the keyboard light at login. (working) |
 | Performance (v2) | `utilities-system-monitor-symbolic` | How fast the CPU may run. |
 | Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
@@ -93,8 +92,8 @@ v1 pages, in order:
 
 ### "Custom" values
 
-When gsettings holds a value that isn't one of a choice row's options (set from MATE's own panel, or the battery and
-AC keys differ), no option is selected and the subtitle says "Custom". Picking an option writes it to both keys.
+When gsettings holds a value that isn't one of a choice row's options (set from MATE's own panel, or the lid's battery
+and AC keys differ), no option is selected and the subtitle says "Custom". Picking an option writes it to both keys.
 The app never rewrites a value the user didn't touch.
 
 ## Pages
@@ -128,12 +127,6 @@ The app never rewrites a value the user didn't touch.
 
 The preset and group rows only cover codes that are in the device's `keys` file; a group with none of its codes
 present is hidden.
-
-### Battery
-
-1. Choice: **When the battery is critically low**, one option: Shut down. Subtitle "Hibernate isn't supported,
-   and suspending would keep draining the battery." Another value set in MATE shows as "Custom", and picking Shut
-   down fixes it.
 
 ### Nubs
 
@@ -295,7 +288,7 @@ Calibrate.
 
 Drafted from the row kinds above; the mockup's sketches (Off / Low / Medium / High, "Dim when idle") don't match
 the agreed mechanism. What the settings do: `design.md`, "Keyboard
-light" and "Screen dimming". In the sidebar after Battery. No row goes through the helper, so no lock icons: the
+light" and "Screen dimming". In the sidebar after Suspend & wake. No row goes through the helper, so no lock icons: the
 page writes `~/.config/pyra-backlight.conf` as the user and runs `systemctl --user reload pyra-idle-dim`.
 
 Without pyra-backlight (no `/usr/bin/pyra-idle-dim`; it is a Recommends) the page holds one row, "pyra-backlight
@@ -492,11 +485,10 @@ Made while writing the GUI, where the sections above say nothing. All verified o
 
 - Icons: Quick settings `preferences-system-symbolic`, Suspend & wake `pyra-settings-suspend-symbolic` (the
   app's own crescent moon in hicolor, 0.4: the mate theme's `weather-clear-night-symbolic` reads as a grey disc
-  at sidebar size), Battery
-  `battery-good-symbolic`; lock `changes-prevent-symbolic`.
+  at sidebar size); lock `changes-prevent-symbolic`.
 - A choice row showing "Custom": A or Right picks the first option, Left the last.
 - Y / X with the focus in the page: the focus goes to the first row of the new page.
-- `org.mate.power-manager` not installed: the lid and battery rows are insensitive, subtitle "MATE power
+- `org.mate.power-manager` not installed: the lid rows are insensitive, subtitle "MATE power
   settings not found".
 - Greyed-out rows still take the focus; A and ◀▶ do nothing on them.
 - Hint glyphs are fixed dark badges (`#333`, white text), not theme colours, as the mockup's are.

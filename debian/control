@@ -20,10 +20,10 @@ Recommends: pyra-hacks (>= 0.38+pyra5),
             pyra-backlight (>= 0.4)
 Description: settings only the DragonBox Pyra has
  Pyra Settings is a small GTK 3 app for the Pyra's own settings: which
- buttons and whether the lid wake the machine from suspend, what the lid and
- a critical battery do, what the nubs do, how the volume wheel maps to
- speaker and headphone volume, how far the screen dims when idle, the
- keyboard light level at login, and a top CPU speed.
+ buttons and whether the lid wake the machine from suspend, what the lid
+ does, what the nubs do, how the volume wheel maps to speaker and headphone
+ volume, how far the screen dims when idle, the keyboard light level at
+ login, and a top CPU speed.
  .
  Root-only settings go through a pkexec helper that writes only known files.
  Wake settings are kept in /etc/pyra-settings/pyra-settings.conf, which
