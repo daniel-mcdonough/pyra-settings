@@ -91,6 +91,29 @@ class BatteryTest(unittest.TestCase):
         self.remove(self.power, st.GAUGE, "current_now")
         self.assertEqual(self.charging()[0], st.UNKNOWN)
 
+    def flow(self, on_battery, current, voltage=4031000):
+        write(os.path.join(self.power, st.GAUGE, "current_now"), str(current))
+        write(os.path.join(self.power, st.GAUGE, "voltage_now"), str(voltage))
+        return st.read_flow(on_battery, self.power)
+
+    def test_flow_charging(self):
+        self.assertEqual(self.flow(False, 1342000), ("+1.34 A \u00b7 +5.4 W", None))
+
+    def test_flow_on_battery(self):
+        self.assertEqual(self.flow(True, -617000, 3800000), ("\u22120.62 A \u00b7 \u22122.3 W", "2.3 W"))
+
+    def test_flow_draining_on_a_charger_has_no_power_use(self):
+        # The charger supplies part of the draw, and its input current isn't measured.
+        self.assertEqual(self.flow(False, -120000)[1], None)
+
+    def test_flow_idle(self):
+        self.assertEqual(self.flow(False, 0), ("0.00 A \u00b7 0.0 W", None))
+
+    def test_flow_unreadable(self):
+        self.remove(self.power, st.GAUGE, "current_now")
+        self.assertEqual(st.read_flow(True, self.power), (st.UNKNOWN, st.UNKNOWN))
+        self.assertEqual(st.read_flow(False, self.power), (st.UNKNOWN, None))
+
     def test_gauge_temp(self):
         self.assertEqual(st.read_gauge_temp(self.power), "38 °C")
         self.remove(self.power, st.GAUGE, "temp")

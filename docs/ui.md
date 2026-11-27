@@ -21,7 +21,7 @@ changes are a design decision, to be agreed first.
 - Rumble page agreed by the owner on 2026-11-26: a switch, a four-step strength choice and a test button
   ("Rumble" under "Pages"), chosen over a slider of raw codes; the start level (`min_code`) left out.
 - Battery page agreed by the owner on 2026-11-27: three info rows, CPU temperature, the board temperature near the
-  battery and the charging state ("Battery" under "Pages"). It replaces 0.18's Battery page (critical battery,
+  battery and the charging state ("Battery" under "Pages"); the same day, Into the battery and Power use. It replaces 0.18's Battery page (critical battery,
   dropped in 0.19) and takes the Status sketch's temperature rows; no pack temperature in °C.
 
 ## Decisions on the mockup
@@ -405,7 +405,7 @@ owner looked at it on the Pyra in their session (2026-11-26): looks good.
 
 ### Battery
 
-Agreed by the owner on 2026-11-27. In the sidebar after Volume wheel, before About. Three info rows, read-only,
+Agreed by the owner on 2026-11-27. In the sidebar after Volume wheel, before About. Info rows, read-only,
 re-read every 2 s while the page shows (values change in place, the page isn't rebuilt). No row is focusable, so
 A on the sidebar leaves the focus there. What each reading is, and why: `design.md`, "Battery readings".
 
@@ -415,6 +415,9 @@ A on the sidebar leaves the focus there. What each reading is, and why: `design.
    the cell."); Paused: battery too hot (subtitle "Charging starts again once it cools."); Paused: battery too
    cold ("... once it warms."); Plugged in, still draining (subtitle "The charger gives less than the Pyra
    uses."); Not charging; Unknown.
+4. Info: **Into the battery**, subtitle "Negative while it drains.", e.g. "+1.34 A · +5.4 W" or "−0.62 A · −2.3 W".
+5. Info: **Power use**, subtitle "The whole Pyra, while on battery.", e.g. "2.3 W". Only while on battery:
+   plugging in or out adds or removes the row (the page is rebuilt then).
 
 The labels and subtitles are working names, checked when the page is first seen on the Pyra.
 

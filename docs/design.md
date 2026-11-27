@@ -358,7 +358,7 @@ VINDPM when DPM is active): neither is a measurement.
 (`voltage_now`), so watts into or out of the battery are `current_now × voltage_now` (the driver has no
 `power_avg` for the bq27421). On battery that is the whole Pyra's draw. On a charger the total draw can't be
 measured: the bq24297 has no input current ADC, so only the battery's share is known (VBUS is measured, input
-current isn't). Not on the page yet.
+current isn't). The page shows both: Into the battery always, Power use only on battery.
 
 ### Screen dimming
 

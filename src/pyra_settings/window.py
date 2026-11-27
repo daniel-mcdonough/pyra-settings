@@ -1090,22 +1090,32 @@ class PyraSettingsWindow(Gtk.Window):
 
     def _battery_rows(self):
         charging, charging_sub = st.read_charging()
-        self.battery_rows = (
-            InfoRow("cpu-temp", "CPU temperature", st.read_cpu_temp()),
-            InfoRow("gauge-temp", "Board temperature near the battery", st.read_gauge_temp(),
-                    "The fuel gauge chip's own temperature, not the cells'."),
-            InfoRow("charging", "Charging", charging, charging_sub))
-        return list(self.battery_rows)
+        into, use = st.read_flow(charging == st.ON_BATTERY)
+        rows = [InfoRow("cpu-temp", "CPU temperature", st.read_cpu_temp()),
+                InfoRow("gauge-temp", "Board temperature near the battery", st.read_gauge_temp(),
+                        "The fuel gauge chip's own temperature, not the cells'."),
+                InfoRow("charging", "Charging", charging, charging_sub),
+                InfoRow("into-battery", "Into the battery", into, "Negative while it drains.")]
+        if use is not None:
+            # Only on battery: on a charger the Pyra's total draw can't be measured (docs/design.md).
+            rows.append(InfoRow("power-use", "Power use", use, "The whole Pyra, while on battery."))
+        self.battery_rows = rows
+        return list(rows)
 
     def _poll_battery(self):
-        """Keep the Battery page's readings live while it is shown."""
-        if self.page == BATTERY_PAGE and self.battery_rows:
-            cpu, gauge, charging = self.battery_rows
-            cpu.value.set_text(st.read_cpu_temp())
-            gauge.value.set_text(st.read_gauge_temp())
-            value, sub = st.read_charging()
-            charging.value.set_text(value)
-            charging.set_subtitle(sub)
+        """Keep the Battery page's readings live while it is shown. Plugging in or out adds or removes Power
+        use, which rebuilds the page."""
+        if self.page != BATTERY_PAGE or not self.battery_rows:
+            return True
+        charging, charging_sub = st.read_charging()
+        into, use = st.read_flow(charging == st.ON_BATTERY)
+        if (use is None) != (len(self.battery_rows) == 4):
+            self.rebuild()
+            return True
+        values = [st.read_cpu_temp(), st.read_gauge_temp(), charging, into, use]
+        for row, value in zip(self.battery_rows, values):
+            row.value.set_text(value)
+        self.battery_rows[2].set_subtitle(charging_sub)
         return True
 
     def _about_rows(self):

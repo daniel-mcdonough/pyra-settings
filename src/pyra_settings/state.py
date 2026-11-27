@@ -1218,6 +1218,24 @@ def _read_int(path):
         return None
 
 
+def read_flow(on_battery, root=None):
+    """(into the battery, power use) as text. Into the battery is the gauge's current, signed (negative while
+    draining), and current times voltage: "+1.34 A · 5.4 W". Power use, "2.5 W", is the whole Pyra's draw,
+    which is only known on battery: on a charger the input current has no ADC, so it is None there."""
+    root = root or POWER_SUPPLY_ROOT
+    current = _read_int(os.path.join(root, GAUGE, "current_now"))
+    voltage = _read_int(os.path.join(root, GAUGE, "voltage_now"))
+    if current is None or voltage is None:
+        return UNKNOWN, UNKNOWN if on_battery else None
+    watts = current * voltage / 1e12
+    sign = "+" if current > 0 else "\u2212" if current < 0 else ""
+    into = "%s%.2f A \u00b7 %s%.1f W" % (sign, abs(current) / 1e6, sign, abs(watts))
+    return into, ("%.1f W" % max(-watts, 0.0)) if on_battery else None
+
+
+ON_BATTERY = "On battery"
+
+
 def read_charging(root=None, iio_root=None):
     """(value, subtitle) for the Charging row.
 
@@ -1233,7 +1251,7 @@ def read_charging(root=None, iio_root=None):
     if vbus is None and online is None:
         return UNKNOWN, ""
     if (vbus < VBUS_MIN_MV) if vbus is not None else not online:
-        return "On battery", ""
+        return ON_BATTERY, ""
     temp = _read_int(os.path.join(root, CHARGER, "temp"))
     if temp is not None and temp >= CHARGER_HOT:
         return "Paused: battery too hot", "Charging starts again once it cools."
