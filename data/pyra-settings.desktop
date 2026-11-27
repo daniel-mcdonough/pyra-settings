@@ -6,4 +6,4 @@ Exec=pyra-settings
 Icon=preferences-system
 Terminal=false
 Categories=GTK;Settings;HardwareSettings;
-Keywords=Pyra;suspend;sleep;wake;lid;nubs;mouse;joystick;volume;wheel;keyboard;backlight;brightness;dim;screen;
+Keywords=Pyra;suspend;sleep;wake;lid;battery;charging;temperature;nubs;mouse;joystick;volume;wheel;keyboard;backlight;brightness;dim;screen;

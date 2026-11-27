@@ -5,7 +5,7 @@ docs/nubs.md and docs/volume-wheel.md; the presets, groups, warnings and options
 The GUI reads sysfs, /etc/pyrainput.cfg, /etc/pyra_volumed.conf and /etc/default/pyra-thermal and never writes
 them. PYRA_SETTINGS_SYSFS, PYRA_SETTINGS_PYRAINPUT, PYRA_SETTINGS_VOLUMED, PYRA_SETTINGS_IIO,
 PYRA_SETTINGS_THERMAL, PYRA_SETTINGS_THERMAL_SCRIPT, PYRA_SETTINGS_CPUFREQ, PYRA_SETTINGS_RUMBLE and
-PYRA_SETTINGS_INPUT point it at fake files on the PC, and PYRA_SETTINGS_AUDIO at a stand-in for amixer, pactl and
+PYRA_SETTINGS_INPUT, PYRA_SETTINGS_POWER_SUPPLY and PYRA_SETTINGS_THERMAL_ZONES point it at fake files on the PC, and PYRA_SETTINGS_AUDIO at a stand-in for amixer, pactl and
 paplay; the helper never reads any of these variables. The test rumble opens the vibra's event device as the user.
 The one file the GUI writes itself is the user's ~/.config/pyra-backlight.conf (PYRA_SETTINGS_BACKLIGHT on the PC).
 
@@ -32,6 +32,8 @@ CPUFREQ_PATH = os.environ.get("PYRA_SETTINGS_CPUFREQ", "/sys/devices/system/cpu/
 # dragonbox-pyra patch 0055's twl6040-vibra parameters, and the input class the test rumble finds the motor in.
 RUMBLE_PARAMS = os.environ.get("PYRA_SETTINGS_RUMBLE", "/sys/module/twl6040_vibra/parameters")
 INPUT_ROOT = os.environ.get("PYRA_SETTINGS_INPUT", "/sys/class/input")
+POWER_SUPPLY_ROOT = os.environ.get("PYRA_SETTINGS_POWER_SUPPLY", "/sys/class/power_supply")
+THERMAL_ZONES = os.environ.get("PYRA_SETTINGS_THERMAL_ZONES", "/sys/class/thermal")
 # dragonbox-pyra's bug-report tool (its prep fix 31). The About page shows and copies what it prints.
 INFO_BINARY = os.environ.get("PYRA_SETTINGS_INFO", "/usr/local/bin/pyra-info")
 GAME_DEV = "pyra-game-buttons"
@@ -516,19 +518,22 @@ def format_cal(cal):
     return " ".join(map(str, cal))
 
 
-def read_wheel_raw(root=None):
-    """in_voltage2_raw of the palmas-gpadc IIO device (its number changes between boots). Raises OSError or
-    ValueError."""
+def _gpadc_dir(root=None):
+    """The palmas-gpadc IIO device (its number changes between boots). Raises OSError."""
     root = root or IIO_ROOT
     for name in sorted(os.listdir(root)):
         dev = os.path.join(root, name)
         try:
-            if _read(os.path.join(dev, "name")) != "palmas-gpadc":
-                continue
+            if _read(os.path.join(dev, "name")) == "palmas-gpadc":
+                return dev
         except OSError:
             continue
-        return int(_read(os.path.join(dev, "in_voltage2_raw")))
     raise FileNotFoundError(2, "no palmas-gpadc device", root)
+
+
+def read_wheel_raw(root=None):
+    """in_voltage2_raw of the palmas-gpadc IIO device. Raises OSError or ValueError."""
+    return int(_read(os.path.join(_gpadc_dir(root), "in_voltage2_raw")))
 
 
 CAL_MARKS = ("all the way down", "a quarter of the way up", "half way up", "three quarters of the way up",
@@ -1166,6 +1171,88 @@ def _last_line(stderr):
         if line.startswith(prefix):
             line = line[len(prefix):]
     return line
+
+
+# Battery page (docs/ui.md "Battery"; what each reading is: docs/design.md "Battery readings")
+
+GAUGE = "bq27421-0"
+CHARGER = "bq24297"
+CPU_ZONE = "cpu_thermal"
+VBUS_CHANNEL = "in_voltage10_input"   # mV, on palmas-gpadc
+VBUS_MIN_MV = 4000       # a charger gives about 4.9 V; nothing plugged in reads 0
+CHARGER_HOT = 600        # bq24297 temp is no reading: 225 normally, 600 or -100 from the TS pin's fault bits
+CHARGER_COLD = -100
+CURRENT_DEADBAND_UA = 10000
+UNKNOWN = "Unknown"
+FULL_SUB = "The charger stops at about 87 %, which spares the cell."
+
+
+def read_cpu_temp(root=None):
+    """The CPU thermal zone as "54 °C", or "Unknown"."""
+    root = root or THERMAL_ZONES
+    try:
+        for name in sorted(os.listdir(root)):
+            zone = os.path.join(root, name)
+            try:
+                if _read(os.path.join(zone, "type")) == CPU_ZONE:
+                    return "%d °C" % round(int(_read(os.path.join(zone, "temp"))) / 1000)
+            except OSError:
+                continue
+    except (OSError, ValueError):
+        pass
+    return UNKNOWN
+
+
+def read_gauge_temp(root=None):
+    """The fuel gauge's own temperature (tenths of a degree in sysfs) as "38 °C", or "Unknown"."""
+    try:
+        return "%d °C" % round(int(_read(os.path.join(root or POWER_SUPPLY_ROOT, GAUGE, "temp"))) / 10)
+    except (OSError, ValueError):
+        return UNKNOWN
+
+
+def _read_int(path):
+    try:
+        return int(_read(path))
+    except (OSError, ValueError):
+        return None
+
+
+def read_charging(root=None, iio_root=None):
+    """(value, subtitle) for the Charging row.
+
+    Plugged in or not is VBUS on the GPADC, measured, since the charger's online can read 0 with a charger in
+    (dragonbox-pyra fix 24). Charging or not is the gauge's current, measured; the gauge's status isn't used, it
+    reads Charging at 0 mA once the charger has stopped. Too hot or cold and Full are the charger's own state."""
+    root = root or POWER_SUPPLY_ROOT
+    try:
+        vbus = int(_read(os.path.join(_gpadc_dir(iio_root), VBUS_CHANNEL)))
+    except (OSError, ValueError):
+        vbus = None
+    online = _read_int(os.path.join(root, CHARGER, "online"))
+    if vbus is None and online is None:
+        return UNKNOWN, ""
+    if (vbus < VBUS_MIN_MV) if vbus is not None else not online:
+        return "On battery", ""
+    temp = _read_int(os.path.join(root, CHARGER, "temp"))
+    if temp is not None and temp >= CHARGER_HOT:
+        return "Paused: battery too hot", "Charging starts again once it cools."
+    if temp is not None and temp <= CHARGER_COLD:
+        return "Paused: battery too cold", "Charging starts again once it warms."
+    try:
+        status = _read(os.path.join(root, CHARGER, "status"))
+    except OSError:
+        status = None
+    current = _read_int(os.path.join(root, GAUGE, "current_now"))
+    if current is not None and current > CURRENT_DEADBAND_UA:
+        return "Charging", ""
+    if status == "Full":
+        return "Full", FULL_SUB
+    if current is not None and current < -CURRENT_DEADBAND_UA:
+        return "Plugged in, still draining", "The charger gives less than the Pyra uses."
+    if current is None:
+        return UNKNOWN, ""
+    return "Not charging", ""
 
 
 # About page (docs/ui.md "About")

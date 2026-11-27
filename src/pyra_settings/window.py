@@ -60,6 +60,7 @@ PAGES = (
     ("nubs", "Nubs", "input-mouse-symbolic", "What the nubs do, and how fast they move."),
     ("rumble", "Rumble", "input-gaming-symbolic", "How strongly the motor rumbles in games."),
     ("volume", "Volume wheel", "audio-volume-high-symbolic", "How the wheel sets the speaker and headphone volume."),
+    ("battery", "Battery", "battery-good-symbolic", "Temperatures, and whether the Pyra is charging."),
     ("about", "About", "help-about-symbolic", "This Pyra and its software, for a bug report."),
 )
 DISPLAY_PAGE = 2
@@ -67,8 +68,10 @@ PERFORMANCE_PAGE = 3
 NUBS_PAGE = 4
 RUMBLE_PAGE = 5
 VOLUME_PAGE = 6
-ABOUT_PAGE = 7
+BATTERY_PAGE = 7
+ABOUT_PAGE = 8
 WHEEL_POLL_MS = 250
+BATTERY_POLL_MS = 2000   # the gauge averages its current over a second
 LOCK_ICON = "changes-prevent-symbolic"
 # The package installs the app's own icons into hicolor; run from src/, they are found in data/icons.
 SOURCE_ICONS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "icons")
@@ -498,6 +501,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.cal_samples = None     # readings for the current mark while it is being recorded
         self.wheel_raw = None
         self.reading_row = None
+        self.battery_rows = None    # (CPU, gauge, charging) InfoRows, updated in place while the page shows
         self.rng = None             # st.RangeSetting while a range is being set by ear
         self.rng_sink = None        # the PulseAudio sink as it was before, to put back
         self.rng_mixer = None       # the mixer step from before, to put back
@@ -583,6 +587,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.rebuild()
         self._clear_status()
         GLib.timeout_add(WHEEL_POLL_MS, self._poll_wheel)
+        GLib.timeout_add(BATTERY_POLL_MS, self._poll_battery)
         self.maximize()
 
     # State
@@ -936,7 +941,7 @@ class PyraSettingsWindow(Gtk.Window):
         self.rows = {}
         builders = (self._quick_rows, self._wake_rows, self._display_rows,
                     self._performance_rows, self._nub_rows, self._rumble_rows, self._volume_rows,
-                    self._about_rows)
+                    self._battery_rows, self._about_rows)
         for i, build in enumerate(builders):
             box = self.page_boxes[i]
             for child in box.get_children():
@@ -1082,6 +1087,26 @@ class PyraSettingsWindow(Gtk.Window):
             ButtonRow("rumble-test", "Test rumble", st.RUMBLE_TEST_SUB if on or r is None else st.RUMBLE_TEST_OFF_SUB,
                       "Play", self.test_rumble, sensitive=on and not self.busy),
         ]
+
+    def _battery_rows(self):
+        charging, charging_sub = st.read_charging()
+        self.battery_rows = (
+            InfoRow("cpu-temp", "CPU temperature", st.read_cpu_temp()),
+            InfoRow("gauge-temp", "Board temperature near the battery", st.read_gauge_temp(),
+                    "The fuel gauge chip's own temperature, not the cells'."),
+            InfoRow("charging", "Charging", charging, charging_sub))
+        return list(self.battery_rows)
+
+    def _poll_battery(self):
+        """Keep the Battery page's readings live while it is shown."""
+        if self.page == BATTERY_PAGE and self.battery_rows:
+            cpu, gauge, charging = self.battery_rows
+            cpu.value.set_text(st.read_cpu_temp())
+            gauge.value.set_text(st.read_gauge_temp())
+            value, sub = st.read_charging()
+            charging.value.set_text(value)
+            charging.set_subtitle(sub)
+        return True
 
     def _about_rows(self):
         if self.info is None:
@@ -1458,6 +1483,8 @@ class PyraSettingsWindow(Gtk.Window):
             self.rebuild()
             if self.status_timer is None:
                 self._clear_status()
+        if self.page == BATTERY_PAGE:
+            self._poll_battery()
         if self.page == ABOUT_PAGE:
             # A package run or a boot-kernel change since the last read changes what it prints.
             info = st.read_info()

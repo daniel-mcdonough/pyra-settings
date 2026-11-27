@@ -20,6 +20,9 @@ changes are a design decision, to be agreed first.
   "Pages"), chosen over one info row per field.
 - Rumble page agreed by the owner on 2026-11-26: a switch, a four-step strength choice and a test button
   ("Rumble" under "Pages"), chosen over a slider of raw codes; the start level (`min_code`) left out.
+- Battery page agreed by the owner on 2026-11-27: three info rows, CPU temperature, the board temperature near the
+  battery and the charging state ("Battery" under "Pages"). It replaces 0.18's Battery page (critical battery,
+  dropped in 0.19) and takes the Status sketch's temperature rows; no pack temperature in °C.
 
 ## Decisions on the mockup
 
@@ -63,6 +66,7 @@ v1 pages, in order:
 | Nubs (v2) | `input-mouse-symbolic` | What the nubs do, and how fast they move. |
 | Rumble (v2) | `input-gaming-symbolic` | How strongly the motor rumbles in games. |
 | Volume wheel (v2) | `audio-volume-high-symbolic` | How the wheel sets the speaker and headphone volume. |
+| Battery (v2) | `battery-good-symbolic` | Temperatures, and whether the Pyra is charging. (working) |
 | About | `help-about-symbolic` | This Pyra and its software, for a bug report. |
 
 ## Page area
@@ -398,6 +402,21 @@ for 3 s. Parameters unreadable: the switch and choice stay, greyed out, nothing 
 text says "Can't read the rumble settings: <error> (<file>)". A press of Play while a test plays does nothing.
 Checked on the greeter's display (no Menta theme there): the page needs no more width than Performance's. The
 owner looked at it on the Pyra in their session (2026-11-26): looks good.
+
+### Battery
+
+Agreed by the owner on 2026-11-27. In the sidebar after Volume wheel, before About. Three info rows, read-only,
+re-read every 2 s while the page shows (values change in place, the page isn't rebuilt). No row is focusable, so
+A on the sidebar leaves the focus there. What each reading is, and why: `design.md`, "Battery readings".
+
+1. Info: **CPU temperature**, e.g. "53 °C". "Unknown" if the zone can't be read.
+2. Info: **Board temperature near the battery**, subtitle "The fuel gauge chip's own temperature, not the cells'."
+3. Info: **Charging**, one of: On battery; Charging; Full (subtitle "The charger stops at about 87 %, which spares
+   the cell."); Paused: battery too hot (subtitle "Charging starts again once it cools."); Paused: battery too
+   cold ("... once it warms."); Plugged in, still draining (subtitle "The charger gives less than the Pyra
+   uses."); Not charging; Unknown.
+
+The labels and subtitles are working names, checked when the page is first seen on the Pyra.
 
 ### About
 

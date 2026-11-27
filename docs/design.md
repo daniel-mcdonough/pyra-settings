@@ -140,7 +140,7 @@ None decided. Each needs a decision before work starts.
 | Keyboard light: default level, idle dimming | `/sys/class/leds/pyra::kbd_backlight`; gsettings `kbd-backlight-battery-reduce` | Decide whether the level persists across boots, and who restores it |
 | Screen idle dim: delay and depth | Delay: gsettings `org.mate.session idle-delay`. Depth: `PYRA_DIM_PERCENT` | Depth is hard-coded in the `pyra-idle-dim.service` unit; pyra-backlight must read it from a config file first |
 | CPU governor tune on/off (fix 16) | `pyra-governor-tune.service` | Only worth it with a reason to turn it off |
-| Status page: battery, charger, temperatures, CPU frequency | Read-only sysfs | None |
+| Status page: battery, charger, temperatures, CPU frequency | Read-only sysfs | The temperatures and charging state are on the Battery page (0.19, below); the rest undecided |
 | BTN1, the CPU board's user button | `user-buttons/wakeup_keys`, code 169 | **Out of v2**: not on the keyboard or case, likely inside on the CPU board (`kernel-interface.md`); a wake switch users can't reach doesn't belong in the app |
 | Display rotation | MATE display panel | Probably stays in MATE |
 
@@ -335,6 +335,30 @@ Reading a parameter gives the value in effect.
   32-bit sizes (`ff_effect` 44 bytes, `input_event` 16) come out right on the Pyra; checked there with the
   codec's VIBCTLR/VIBDATR registers: Light 0x2c, Strong 0x38, Max 0x3c, nothing with rumble off.
 - **Purge** deletes the file only if its first line is the helper's header. Plain removal keeps it.
+
+### Battery readings
+
+The Battery page (`ui.md` "Battery") is read-only and world-readable sysfs, no helper. Checked against the 5.6.19
+drivers (`bq2429x_charger.c`, `bq27xxx_battery.c`) and read on the Pyra on 2026-11-27.
+
+| Reading | Source | What it really is |
+|---|---|---|
+| CPU temperature | thermal zone of type `cpu_thermal`, m°C | The SoC's CPU sensor |
+| Board temperature near the battery | `power_supply/bq27421-0/temp`, 0.1 °C | The fuel gauge's die, on the mainboard: the board, not the cells (image `fixes.md` "Fault 1") |
+| Plugged in | palmas-gpadc `in_voltage10_input` (VBUS, mV), above 4000 | Measured. `bq24297/online` is the fallback only: it can read 0 with a charger in (image fix 24) |
+| Too hot / too cold | `bq24297/temp` 600 / -100 | Not a temperature: the driver returns 225 normally and these two from the TS pin's NTC fault bits in its cached REG09, read on the charger's interrupt. Never read the charger's `registers` file: on a kernel without image patch 0054 that clears the fault latch |
+| Charging | `bq27421-0/current_now`, signed µA, positive into the cell | Measured: the gauge's AverageCurrent (1 s), through its sense resistor |
+| Full | `bq24297/status` = `Full` | The charger's CHRG_STAT, charge terminated at 4.048 V (about 87 %, owner's 2026-11-20 choice) |
+
+Not used: `bq27421-0/status` reads `Charging` at 0 mA after the charger has stopped. `bq24297/current_now` is
+the configured charge current or input limit, whichever is lower, and `bq24297/voltage_now` is a fixed 5 V (or
+VINDPM when DPM is active): neither is a measurement.
+
+**Power figures.** Reliable: current into or out of the cell (`current_now`) and battery voltage
+(`voltage_now`), so watts into or out of the battery are `current_now × voltage_now` (the driver has no
+`power_avg` for the bq27421). On battery that is the whole Pyra's draw. On a charger the total draw can't be
+measured: the bq24297 has no input current ADC, so only the battery's share is known (VBUS is measured, input
+current isn't). Not on the page yet.
 
 ### Screen dimming
 
